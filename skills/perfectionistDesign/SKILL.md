@@ -1,6 +1,6 @@
 ---
 name: perfectionistDesign
-description: End-to-end pipeline for building a premium, real-feeling marketing website or landing page from nothing - discovery interview, ChatGPT mockup generation, spec extraction, photorealistic image generation, self-contained build, measurement-based verification, deploy and git. Use when the user says they want to build a website, landing page, portfolio site, or brand site, when they paste a design brief or reference screenshot, or when they invoke perfectionistDesign directly. Also use for redesigns of an existing page.
+description: End-to-end pipeline for building any premium, real-feeling web project from nothing - marketing sites and landing pages, and also applications such as forums, dashboards, admin panels, booking systems, community sites and documentation portals. Covers discovery interview, mockup generation via Codex imagegen, spec extraction, photorealistic image generation, build, measurement-based verification with failure gates, deploy and git. Use when the user says they want to build a website, landing page, portfolio, brand site, forum, dashboard, web app or product UI, when they paste a design brief or reference screenshot, or when they invoke perfectionistDesign directly. Also use for redesigns.
 ---
 
 # perfectionistDesign
@@ -38,6 +38,30 @@ The interview uses AskUserQuestion in **at most two rounds** of up to 4 question
 not a form. If the user's brief already answers something, do not ask it.
 
 ---
+
+## 1.5 PICK THE TRACK BEFORE THE PHASES
+
+Nothing in this skill hardcodes a section list. Sections are always derived from the mockup,
+which is why a gym got transformations, a clinic got a smile gallery and a hotel got rooms.
+**But there are two different kinds of thing to build, and they need different pipelines.**
+
+| | **Marketing track** (default) | **Application track** |
+|---|---|---|
+| Examples | landing page, portfolio, brand site, campaign | forum, dashboard, admin panel, booking system, docs portal, community site |
+| Design source | one tall full-page mockup | one mockup per key screen |
+| Structure | a vertical sequence of sections | routes + components + states |
+| Build | one self-contained HTML file | a real design system (`design-taste-frontend` 2.A) |
+| Reference | phases below | **`references/08-application-track.md`** |
+
+**Test:** does it have a logged-in state, a list of user-created records, or a form that
+changes stored data? If yes, application track.
+
+Mixed is normal and expected - a forum has a marketing home page *and* the forum. Run both
+tracks and say which surface you are on. Phases 0, 3, 4, 6 and 7 are shared and identical.
+
+> Do not run the marketing track on an application. It produces a brochure about the
+> product instead of the product, and the failure is invisible until the user tries to use
+> the thing.
 
 ## 2. PHASE MAP
 
@@ -101,12 +125,16 @@ State which ones you are pulling and why, in one line. Do not load all of them.
 These are load-bearing. They came from real failures. Full detail in the references.
 
 ### 4.1 Deliverable shape
-Default to **one self-contained HTML file**: hand-written CSS, vanilla JS, inlined SVG,
-zero build step, zero CDN `<script>`. Briefs pasted from ChatGPT almost always specify
-React + Vite + Tailwind + Framer Motion — **that is the image model's boilerplate, not the
-user's requirement.** The real instruction is usually a single line at the end of the brief
-("End result a self contained HTML file"). Read the tail of the brief before believing the
-stack. Confirm in the interview if genuinely ambiguous.
+**Marketing track:** default to **one self-contained HTML file** — hand-written CSS, vanilla
+JS, inlined SVG, zero build step, zero CDN `<script>`. Briefs pasted from ChatGPT almost
+always specify React + Vite + Tailwind + Framer Motion — **that is the image model's
+boilerplate, not the user's requirement.** The real instruction is usually a single line at
+the end of the brief ("End result a self contained HTML file"). Read the tail of the brief
+before believing the stack.
+
+**Application track:** the single-file default does **not** apply. State, routing and
+repeated components make one file unmaintainable by the second route. Use a real design
+system per `design-taste-frontend` 2.A. See `08-application-track.md` §4.
 
 ### 4.2 Content must never depend on animation
 Reveal animations opt IN via a `.js` class set by an inline `<head>` script, and an
@@ -196,4 +224,6 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/06-ship-deploy-git.md` — staging, deploy, live audit, git
 - `references/07-failure-gates.md` — **13 mechanical gates, every one from a defect that
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1.**
+- `references/08-application-track.md` — **forums, dashboards, admin panels and any other
+  thing people *use* rather than read. Replaces Phases 1-2 and the build half of Phase 5.**
 - `templates/credits.json` — asset ledger template

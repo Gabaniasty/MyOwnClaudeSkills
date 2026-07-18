@@ -10,14 +10,29 @@ via AskUserQuestion. Skip anything the brief already answers.
 
 ### Q1. What are we building? (header: `Project`)
 Options should be concrete, drawn from what they said. Include their own words as option 1.
+
+**This question also selects the TRACK.** The first four are marketing; the fifth is the
+application track (`08-application-track.md`). Offer whichever four fit what they said.
+
 - Landing page for a local business (gym, clinic, studio, restaurant)
 - Brand / product marketing site (SaaS, consumer product, launch)
 - Portfolio or agency site (creative, dev, studio)
 - Editorial / concept piece (fan concept, campaign, showcase)
+- **An application people use** (forum, dashboard, admin panel, booking system, docs, community)
 
 *Why it matters:* local-business sites need trust signals, faces, and a booking CTA above
 the fold. Portfolio sites need restraint and typography. Concept pieces can be loud. The
 category picks the aesthetic far more than personal taste does.
+
+*Track test:* does it have a logged-in state, a list of user-created records, or a form that
+changes stored data? If yes it is an application, and building it as a long scrolling page
+will produce a brochure about the product instead of the product.
+
+**If application track, add these to Round 2:**
+- Does it need accounts and a logged-in state?
+- Is the content seeded sample data, or genuinely user-generated?
+- Real backend, or a static front-end demo? *(this becomes an honesty disclosure either way)*
+- Is moderation / admin in scope, or the member-facing surface only?
 
 ### Q2. Do you have a reference to work from? (header: `Reference`)
 - No — generate a mockup first *(Recommended — go to Phase 1)*
