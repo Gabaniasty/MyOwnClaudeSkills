@@ -12,6 +12,31 @@ Run every check below. Report numbers, not adjectives.
 
 ---
 
+## 0. Environment discriminator — run this FIRST, every time
+
+Before diagnosing any behavioural bug, establish whether the mechanism can run here at all.
+Seven times in one session a frozen harness was misread as broken code.
+
+```js
+(() => ({
+  documentHidden: document.hidden,
+  scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
+  verdict: document.hidden
+    ? 'FROZEN: rAF, smooth scroll, CSS transitions, :focus and screenshots are all unreliable. Defeat the artifact before concluding anything.'
+    : 'live'
+}))()
+```
+
+If `documentHidden` is true, apply the workarounds in `07-failure-gates.md` Gate 2 **before**
+editing any code. If defeating the artifact makes the symptom disappear, there was no bug —
+say so instead of shipping a fix.
+
+## 0.5 Child-overflow sweep — the single highest-value check
+
+One failure class (measuring a container, not its child) caused 5 of the 9 defects that
+escaped to the user. Run `07-failure-gates.md` Gate 1 at every breakpoint. Pass condition is
+`0`, and the number goes in your report.
+
 ## 1. Clean-load baseline
 
 ```js

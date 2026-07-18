@@ -55,10 +55,23 @@ and the interview tells you which.
 | 6 | Verification | `05-verification-protocol.md` | never |
 | 7 | Ship: deploy + git | `06-ship-deploy-git.md` | user said local only |
 
-**Phases 1 and 2 happen in ChatGPT, not here.** You hand the user prompts to paste. That
-is deliberate: ChatGPT's image model produces the mockup, and a mockup drawn by an image
-model is a far better brief than anything either of you writes from scratch. See
-`02-chatgpt-prompt-pack.md` for why and for the exact prompt text.
+**Phases 1-3 have two routes. Ask which, or read it from the request.**
+
+- **Automated (default when the user says "automate" or "use codex").** Codex CLI's
+  `imagegen` system skill generates the mockup and every section image via `codex exec`.
+  No API key — the user's ChatGPT auth covers it. See `03-image-generation.md` §3.1.
+- **Interactive.** Hand the user prompts to paste into ChatGPT's web UI. Slower, but they
+  art-direct each image conversationally. See `02-chatgpt-prompt-pack.md`.
+
+Either way the *principle* holds: a mockup drawn by an image model is a far better brief
+than anything either of you writes from scratch, because it makes a hundred composition
+decisions neither of you would think to specify. Do not skip the mockup and build from a
+text brief.
+
+> `codex plugin list` does **not** show `imagegen` — it is a system skill at
+> `$CODEX_HOME/skills/.system/imagegen`, not a marketplace plugin. Checking only the plugin
+> list once produced a confident, wrong "Codex cannot generate images". Verify by listing
+> that path.
 
 ---
 
@@ -110,13 +123,23 @@ Placeholder imagery is fine and expected. These are not:
 Ship the requested layout, put the caveat in `credits.json` **and** on the page, and say so
 plainly in your summary. Never bury it. `04-build-standards.md` §8.
 
-### 4.4 Measure, never eyeball
-`05-verification-protocol.md` is mandatory before you call anything done.
+### 4.4 Measure the right thing, and say which thing you measured
+`05-verification-protocol.md` and `07-failure-gates.md` are both mandatory before you call
+anything done. The recurring failure is not skipping measurement — it is measuring a
+container and reporting it as proof about its contents. Always state what was measured.
 
 ### 4.5 Honesty about your own errors
 If you broke it, say "I broke it" and name the cause. A wrong claim about the user's files
 ("your images vanished") is worse than the bug. Re-check your own shell cwd before
 asserting anything about the filesystem.
+
+Do not reconstruct this session's history from memory when a transcript exists — grep it.
+Self-recollection has been wrong about counts and about which skills were loaded.
+
+### 4.6 A prose rule is not a control
+Three rules in this skill were written down and then violated in a later phase of the same
+session. If a lesson matters, it belongs in `07-failure-gates.md` as a command with a pass
+condition, tied to a named phase — not as a paragraph of advice.
 
 ---
 
@@ -135,18 +158,29 @@ asserting anything about the filesystem.
 
 ## 6. DEFINITION OF DONE
 
-Do not report completion until every line is true and evidenced:
+**Run `references/07-failure-gates.md` before reporting anything complete.** Every gate
+produces a number. Report the numbers, not the word "verified."
 
-- [ ] 0 broken images, counting **`srcset` candidates**, not just `src`
-- [ ] 0 console errors on a clean load
-- [ ] 0 stranded reveal targets after a full-page scroll
+- [ ] **Gate 1** children overflowing unclipped parents: **0** (this caused 5 of 9 escaped defects)
+- [ ] **Gate 2** environment discriminator run before any "it's broken" conclusion
+- [ ] **Gate 3** every referenced variant width confirmed to exist
+- [ ] **Gate 4** standalone renders == sections identified
+- [ ] **Gate 5** the reference mockup's own contrast measured, deviations recorded
+- [ ] **Gate 6** audit covers `srcset`; at least one placed asset opened and eyeballed
+- [ ] 0 broken images, 0 console errors, 0 stranded reveals
 - [ ] 0 horizontal overflow at 375 / 768 / 1024 / 1440 / 1920
-- [ ] Text contrast >= 4.5:1 measured against **rendered pixels**, at every breakpoint
-- [ ] Any face or focal subject survives its crop at every breakpoint
-- [ ] Keyboard: focus visible, dialogs trap and restore focus, Escape closes
-- [ ] `credits.json` records every asset, its provenance, and any outstanding caveat
+- [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
+- [ ] Focal subject survives its crop at every breakpoint
+- [ ] Keyboard: focus rules present, dialogs trap and restore focus, Escape closes
+- [ ] Every primary CTA leads somewhere real — a form, not a scroll to another button
+- [ ] `credits.json` records provenance and outstanding caveats
 - [ ] Deployed URL fetched and re-audited live, not assumed from a success message
-- [ ] Pushed, with the correct project verified in the correct repo
+
+### The failure this list exists to prevent
+Nine times across six projects, a user reported breakage that the immediately preceding turn
+had explicitly verified as passing. In every case a real measurement was taken of the wrong
+thing and allowed to stand for a broader claim. **Measuring one true thing is not evidence
+for a different claim.**
 
 ---
 
@@ -160,4 +194,6 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/04-build-standards.md` — design system, single-file architecture, JS patterns, traps
 - `references/05-verification-protocol.md` — the measurement scripts
 - `references/06-ship-deploy-git.md` — staging, deploy, live audit, git
+- `references/07-failure-gates.md` — **13 mechanical gates, every one from a defect that
+  reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1.**
 - `templates/credits.json` — asset ledger template

@@ -1,6 +1,13 @@
-# Phases 1 & 2 — The ChatGPT Prompt Pack
+# Phases 1 & 2 — The ChatGPT Prompt Pack (interactive route)
 
-These two prompts run in **ChatGPT** (image model + reasoning), not here. Hand them to the
+> **This is the interactive route.** For the automated route — Codex CLI's `imagegen` skill
+> generating the mockup and every asset with no copy-pasting — see `03-image-generation.md`
+> §3.1. Default to Codex when the user asks to automate. Use this file when they want to
+> art-direct each image conversationally and iterate on the mockup by talking to it.
+>
+> The prompt *bodies* below are equally good as Codex task files. Only the delivery differs.
+
+These prompts run in **ChatGPT** (image model + reasoning), not here. Hand them to the
 user as copy-paste blocks in a fenced code block, filled in with their answers from Phase 0.
 
 **Why this detour is worth it.** An image model asked for a full-page mockup will make a
@@ -72,6 +79,20 @@ The extracted prompt must specify, concretely and with real values:
 
 All content must be readable, selectable HTML text. Do not bake text into images.
 ```
+
+### Analysing the mockup: full resolution, one render per section
+
+Two hard rules, both learned by shipping a section wrong:
+
+1. **Crop at full resolution when identifying what a section contains.** A CTA band was
+   built as a flat colour because it was read from a 760px-wide slice of an 1824px mockup;
+   at that scale a photographed plaster wall with a vase and bowl looks like flat sand.
+2. **Generate one standalone render per section, and count them.** Four renders were made
+   for eight sections, and the three analysed from crops are exactly where the errors were.
+   `07-failure-gates.md` Gate 4 has the assertion.
+
+Measure the reference's own contrast too. Twice a supplied mockup failed AA on its own text
+(1.06:1 and 3.12:1); copying it faithfully ships an inaccessible page. Gate 5.
 
 ### The critical follow-up
 The user should then paste ChatGPT's extracted brief back to **you**. When they do:

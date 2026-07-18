@@ -2,42 +2,68 @@
 
 ---
 
-## 3.1 What generates images — read this before promising anything
+## 3.1 Codex CLI generates the images — this phase is automated
 
-**Codex CLI does not generate images.** Verified against v0.144.6: its subcommands are
-`exec`, `review`, `login`, `mcp`, `plugin`, `sandbox`, `apply`, `resume`, `cloud`; its
-bundled plugins are `documents`, `pdf`, `spreadsheets`, `presentations`,
-`template-creator`, `browser`, `visualize`. None of them produce images. Do not tell the
-user otherwise.
+**Codex CLI ships an `imagegen` system skill.** It lives at
+`$CODEX_HOME/skills/.system/imagegen` (default `~/.codex`), *not* in the plugin
+marketplace. `codex plugin list` will not show it — do not conclude from that list that
+image generation is unavailable. That mistake was made once and stated confidently.
 
-Image generation happens in **ChatGPT** (web UI, image model), driven by the prompt pack
-from `02-chatgpt-prompt-pack.md`. That is what actually worked.
+Two modes, per its own SKILL.md:
 
-### Where Codex CLI genuinely earns its place
-It is a second, independent coding agent authenticated to the user's ChatGPT account. Use
-it for **adversarial review** — a fresh pair of eyes with no memory of your reasoning, which
-is exactly what catches the bugs you rationalised:
+| Mode | Model | Needs `OPENAI_API_KEY` | When |
+|---|---|---|---|
+| Built-in `image_gen` tool | `gpt-image-2` | **No** — ChatGPT auth covers it | default, always prefer |
+| CLI fallback `scripts/image_gen.py` | `gpt-image-2` / `gpt-image-1.5` | **Yes** | only if the user explicitly asks, or for true native transparency |
 
-```bash
-# Independent review of the built page
-codex exec "Review <path>/index.html as a senior frontend engineer. Find: contrast
-failures, layout breakage under 400px, images that can be clipped invisible by reveal
-animations, focus traps that do not restore, and any <source> in a <picture> whose file
-is missing. List concrete defects with line numbers. Do not restate what the code does."
-```
+Never silently downgrade built-in → CLI, or `gpt-image-2` → `gpt-image-1.5`. Ask first.
 
-Check availability first; never assume it is installed:
+### Verify before promising
 
 ```bash
-codex --version          # confirm present
-codex login status       # confirm authenticated
+codex --version
+codex login status                                  # "Logged in using ChatGPT" is enough
+ls "$CODEX_HOME/skills/.system/imagegen/SKILL.md"    # ~/.codex on default installs
 ```
 
 If absent: `npm install -g @openai/codex`, then `codex login`.
 
-### If image generation must be automated
-Add an image-capable MCP server to Codex (`codex mcp`) or use the local
-`imagegen-frontend-web` skill for prompt construction. Do not invent a capability.
+### Driving it
+
+```bash
+codex exec --skip-git-repo-check -C "<project>" -s workspace-write \
+  -o "<scratch>/result.txt" "<prompt>"
+```
+
+- `-C` sets the working directory; `-s workspace-write` is required or it cannot save files.
+- `-o` captures the final message — read it for the saved path.
+- `-i <FILE>` passes reference images, which is how you enforce character consistency
+  across a set (see §3.2).
+- Long runs: launch in the background and do other work while it generates.
+
+**Save-path trap — this recurred three times after being written down.** In built-in mode
+Codex writes to `$CODEX_HOME/generated_images/<session>/exec-<uuid>.png` and only copies
+into the project **at the very end of the run**. Mid-run that is indistinguishable from a
+hang, and a user watching an asset count will report it as stuck.
+
+The prompt must name an explicit in-project destination, **and** the moment anyone asks why
+files are missing you run the lookup in `07-failure-gates.md` Gate 8 *before* answering.
+Do not report "still generating" based on the process existing — see Gate 7.
+
+### Codex also earns its place as an adversarial reviewer
+A second agent with no memory of your reasoning catches the bugs you rationalised:
+
+```bash
+codex exec -C "<project>" -s read-only "Review index.html as a senior frontend engineer.
+Find: contrast failures, layout breakage under 400px, images that can be clipped invisible
+by reveal animations, focus traps that do not restore, and any <source> in a <picture>
+whose file is missing. List concrete defects with line numbers."
+```
+
+### Where ChatGPT web still wins
+The `02-chatgpt-prompt-pack.md` route stays valid when the user prefers to art-direct
+interactively and iterate on a mockup conversationally. Codex automates; the web UI gives
+tighter human control. Offer both; default to Codex when the user asks for automation.
 
 ---
 
@@ -147,6 +173,13 @@ better — a 1,971 KB PNG hero became 81 KB.
 
 **Widths:** derive from the *rendered* CSS size, not from guesswork. A card that renders
 at 579px needs a 620w and a 900w; a lightbox that renders at 1177px needs a 1400w.
+
+> **Never hand-write a variant width into HTML.** `withoutEnlargement` silently skips any
+> width above the master, so a requested 1200w against a 1086px master produces no file —
+> and when that width is your `src` fallback, you ship a broken image. This happened twice
+> in one project (`hero-dentist-1200`, then `cta-band-2000`), the second time after the rule
+> was already written down. Derive the list from `metadata()`, and always emit the master's
+> own width as the widest honest variant. See `07-failure-gates.md` Gate 3.
 
 ### Markup
 ```html
