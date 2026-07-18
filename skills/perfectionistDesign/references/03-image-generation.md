@@ -1,22 +1,22 @@
-# Phases 3 & 4 — Imagery and the Asset Pipeline
+﻿# Phases 3 & 4 â€” Imagery and the Asset Pipeline
 
 ---
 
-## 3.1 Codex CLI generates the images — this phase is automated
+## 3.1 Codex CLI generates the images â€” this phase is automated
 
 **Codex CLI ships an `imagegen` system skill.** It lives at
 `$CODEX_HOME/skills/.system/imagegen` (default `~/.codex`), *not* in the plugin
-marketplace. `codex plugin list` will not show it — do not conclude from that list that
+marketplace. `codex plugin list` will not show it â€” do not conclude from that list that
 image generation is unavailable. That mistake was made once and stated confidently.
 
 Two modes, per its own SKILL.md:
 
 | Mode | Model | Needs `OPENAI_API_KEY` | When |
 |---|---|---|---|
-| Built-in `image_gen` tool | `gpt-image-2` | **No** — ChatGPT auth covers it | default, always prefer |
+| Built-in `image_gen` tool | `gpt-image-2` | **No** â€” ChatGPT auth covers it | default, always prefer |
 | CLI fallback `scripts/image_gen.py` | `gpt-image-2` / `gpt-image-1.5` | **Yes** | only if the user explicitly asks, or for true native transparency |
 
-Never silently downgrade built-in → CLI, or `gpt-image-2` → `gpt-image-1.5`. Ask first.
+Never silently downgrade built-in â†’ CLI, or `gpt-image-2` â†’ `gpt-image-1.5`. Ask first.
 
 ### Verify before promising
 
@@ -36,19 +36,19 @@ codex exec --skip-git-repo-check -C "<project>" -s workspace-write \
 ```
 
 - `-C` sets the working directory; `-s workspace-write` is required or it cannot save files.
-- `-o` captures the final message — read it for the saved path.
+- `-o` captures the final message â€” read it for the saved path.
 - `-i <FILE>` passes reference images, which is how you enforce character consistency
-  across a set (see §3.2).
+  across a set (see Â§3.2).
 - Long runs: launch in the background and do other work while it generates.
 
-**Save-path trap — this recurred three times after being written down.** In built-in mode
+**Save-path trap â€” this recurred three times after being written down.** In built-in mode
 Codex writes to `$CODEX_HOME/generated_images/<session>/exec-<uuid>.png` and only copies
 into the project **at the very end of the run**. Mid-run that is indistinguishable from a
 hang, and a user watching an asset count will report it as stuck.
 
 The prompt must name an explicit in-project destination, **and** the moment anyone asks why
 files are missing you run the lookup in `07-failure-gates.md` Gate 8 *before* answering.
-Do not report "still generating" based on the process existing — see Gate 7.
+Do not report "still generating" based on the process existing â€” see Gate 7.
 
 ### Codex also earns its place as an adversarial reviewer
 A second agent with no memory of your reasoning catches the bugs you rationalised:
@@ -61,7 +61,7 @@ whose file is missing. List concrete defects with line numbers."
 ```
 
 ### Where ChatGPT web still wins
-The `02-chatgpt-prompt-pack.md` route stays valid when the user prefers to art-direct
+The `02-mockup-prompt.md` route stays valid when the user prefers to art-direct
 interactively and iterate on a mockup conversationally. Codex automates; the web UI gives
 tighter human control. Offer both; default to Codex when the user asks for automation.
 
@@ -76,12 +76,12 @@ strangers and the brand reads as fake instantly.
 Store at `<project>/image-prompt-pack.md`. Shape:
 
 ```markdown
-## Founder 1 — <Name>
+## Founder 1 â€” <Name>
 A fictional <age>-year-old <role>.
 - Height: approximately <n> cm
 - Build: <specific, with realistic body fat>
 - Skin: <tone> with <freckles / visible pores / texture detail>
-- Face: <shape>, <a specific asymmetry — a crooked nose, uneven smile>
+- Face: <shape>, <a specific asymmetry â€” a crooked nose, uneven smile>
 - Hair: <colour, cut, texture, how it moves>
 - Eyes: <colour>
 - Clothing: <exact garments, colours>
@@ -120,7 +120,7 @@ Specify the **safe area** in the prompt, not afterwards:
 > Preserve the left 42% of the image as deep, softly detailed negative space suitable for
 > large white website typography and buttons. Subjects occupy the right 60-82% of the frame.
 
-Then, before building, **measure where the subjects actually landed** — the model
+Then, before building, **measure where the subjects actually landed** â€” the model
 approximates. Crop the source to the region you believe holds the faces, write it to a
 scratch file, and look at it. Record the result in `credits.json`:
 
@@ -129,7 +129,7 @@ scratch file, and look at it. Record the result in `credits.json`:
              not estimated. Any future crop must keep that rectangle whole."
 ```
 
-That band is then a hard constraint for every breakpoint. `05-verification-protocol.md` §4
+That band is then a hard constraint for every breakpoint. `05-verification-protocol.md` Â§4
 has the check.
 
 ---
@@ -139,7 +139,7 @@ has the check.
 `sharp` is the tool. Install at the workspace root, not per project.
 
 ```js
-// scripts/optimise.cjs  — write a file; do not fight node -e quoting
+// scripts/optimise.cjs  â€” write a file; do not fight node -e quoting
 const sharp = require("sharp");
 const path = require("path");
 
@@ -169,13 +169,13 @@ const jobs = [
 ```
 
 **Settings:** WebP q78-80, progressive JPEG q82 with mozjpeg. Typical saving is 20x or
-better — a 1,971 KB PNG hero became 81 KB.
+better â€” a 1,971 KB PNG hero became 81 KB.
 
 **Widths:** derive from the *rendered* CSS size, not from guesswork. A card that renders
 at 579px needs a 620w and a 900w; a lightbox that renders at 1177px needs a 1400w.
 
 > **Never hand-write a variant width into HTML.** `withoutEnlargement` silently skips any
-> width above the master, so a requested 1200w against a 1086px master produces no file —
+> width above the master, so a requested 1200w against a 1086px master produces no file â€”
 > and when that width is your `src` fallback, you ship a broken image. This happened twice
 > in one project (`hero-dentist-1200`, then `cta-band-2000`), the second time after the rule
 > was already written down. Derive the list from `metadata()`, and always emit the master's
@@ -199,21 +199,21 @@ Always set `width`/`height` (reserves layout), `loading="lazy"` except the hero,
 
 ### Naming trap
 **Name optimised files after the person or slot they actually depict, and verify by opening
-one.** Two transformation sets were once optimised into files named for the wrong people —
-`tr-michael-*` held a woman — so both cards carried the wrong name and the filenames stayed
+one.** Two transformation sets were once optimised into files named for the wrong people â€”
+`tr-michael-*` held a woman â€” so both cards carried the wrong name and the filenames stayed
 a trap for whoever touched it next. Renaming only the labels would have hidden it. Check
 the bytes.
 
 ### Folder layout
 ```
 <project>/
-├── index.html
-├── images/
-│   ├── <slug>-<width>.{jpg,webp}     # optimised, referenced
-│   ├── credits.json                   # the ledger
-│   ├── _masters/                      # source PNGs — NOT deployed
-│   └── _superseded/                   # retired placeholders — NOT deployed
-└── image-prompt-pack.md
+â”œâ”€â”€ index.html
+â”œâ”€â”€ images/
+â”‚   â”œâ”€â”€ <slug>-<width>.{jpg,webp}     # optimised, referenced
+â”‚   â”œâ”€â”€ credits.json                   # the ledger
+â”‚   â”œâ”€â”€ _masters/                      # source PNGs â€” NOT deployed
+â”‚   â””â”€â”€ _superseded/                   # retired placeholders â€” NOT deployed
+â””â”€â”€ image-prompt-pack.md
 ```
 
 `_masters/` is routinely 20-30 MB. It belongs in git, never in a deploy.

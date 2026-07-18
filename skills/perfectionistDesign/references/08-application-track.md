@@ -1,12 +1,24 @@
-# The Application Track
+# Application Screens
 
-Use this instead of Phases 1-2 and the build half of Phase 5 when the thing being built is
-an **application** rather than a marketing page: a forum, a dashboard, an admin panel, a
-booking system, a community site, a documentation portal, a chat app, a store front-end.
+> **This is not a separate pipeline.** It is the same loop from `SKILL.md` §0.5, run once
+> per screen, with two adjustments. Read it that way. An application is not a different
+> universe; it is more pages, and pages are what the loop makes.
 
-The rest of the pipeline is unchanged. Discovery, imagery, the asset pipeline, the failure
-gates, verification, deploy and git are all shared. **Only the design source and the build
-architecture differ.**
+Two adjustments only, and they apply **to the product screens, not to the marketing pages**:
+
+1. **Derive routes + components + states instead of a section list** (§2). A thread list has
+   no "hero"; it has rows, pagination and an empty state.
+2. **Do not default to one self-contained HTML file** (§4). State and repeated components
+   make that unmaintainable past the second route.
+
+Everything else is shared and unchanged: discovery, mockup derivation, Codex imagegen, the
+asset pipeline, the failure gates, verification, deploy and git.
+
+### Most real projects are mixed, and that is normal
+A forum has a **landing page** (marketing loop: derive sections that prove liveness) and a
+**forum** (this file: derive routes, components, states). Build the landing page first — it
+establishes the brand world every later screen inherits via `-i`. Say which surface you are
+on at each pass.
 
 ---
 

@@ -1,4 +1,4 @@
----
+﻿---
 name: perfectionistDesign
 description: End-to-end pipeline for building any premium, real-feeling web project from nothing - marketing sites and landing pages, and also applications such as forums, dashboards, admin panels, booking systems, community sites and documentation portals. Covers discovery interview, mockup generation via Codex imagegen, spec extraction, photorealistic image generation, build, measurement-based verification with failure gates, deploy and git. Use when the user says they want to build a website, landing page, portfolio, brand site, forum, dashboard, web app or product UI, when they paste a design brief or reference screenshot, or when they invoke perfectionistDesign directly. Also use for redesigns.
 ---
@@ -26,6 +26,41 @@ cropped off at 1920px.
 
 ---
 
+## 0.5 THE LOOP â€” this is the whole skill
+
+Everything below is detail. **This is the shape:**
+
+```
+   describe the thing
+        â†“
+   DERIVE what this specific thing must prove      <- the only creative step
+        â†“
+   write the mockup prompt from that derivation
+        â†“
+   generate the mockup image (Codex imagegen)
+        â†“
+   measure it, extract the design system
+        â†“
+   build it
+        â†“
+   verify by measurement + failure gates
+        â†“
+   ship
+```
+
+**The loop runs once per page or screen.** A one-page site runs it once. A five-page site
+runs it five times. A forum with a landing page, a category index and a thread view runs it
+three times, passing the first mockup as `-i` to the others so the brand world holds.
+
+**Nothing about the section list is fixed.** There is no template. Sections are derived at
+step 2 from what the *subject* needs to prove, then confirmed by the mockup. That is why a
+gym got transformations, a clinic got a smile gallery, a hotel got rooms â€” none of those
+words appear anywhere in this skill.
+
+> If you find yourself reaching for "hero, features, testimonials, CTA" without having
+> derived it from the subject, you have skipped step 2 and are about to build a template.
+> See `references/02-mockup-prompt.md` Â§0.
+
 ## 1. TRIGGER AND FIRST MOVE
 
 Fires on: "build me a X website", "landing page for X", "redesign this", a pasted brief,
@@ -45,11 +80,11 @@ Nothing in this skill hardcodes a section list. Sections are always derived from
 which is why a gym got transformations, a clinic got a smile gallery and a hotel got rooms.
 **But there are two different kinds of thing to build, and they need different pipelines.**
 
-| | **Marketing track** (default) | **Application track** |
+| | **A page that is read** | **A screen that is used** |
 |---|---|---|
-| Examples | landing page, portfolio, brand site, campaign | forum, dashboard, admin panel, booking system, docs portal, community site |
-| Design source | one tall full-page mockup | one mockup per key screen |
-| Structure | a vertical sequence of sections | routes + components + states |
+| Examples | landing page, portfolio, brand site, forum *home* | forum *thread list*, dashboard, admin panel, inbox |
+| Derive | sections that prove what the subject must prove | routes + components + **states** |
+| Design source | one tall full-page mockup | one mockup per screen |
 | Build | one self-contained HTML file | a real design system (`design-taste-frontend` 2.A) |
 | Reference | phases below | **`references/08-application-track.md`** |
 
@@ -71,8 +106,8 @@ and the interview tells you which.
 | # | Phase | Reference | Skippable when |
 |---|---|---|---|
 | 0 | Discovery interview | `01-discovery-interview.md` | never |
-| 1 | Mockup generation (ChatGPT) | `02-chatgpt-prompt-pack.md` | user already has a reference image |
-| 2 | Spec extraction (ChatGPT) | `02-chatgpt-prompt-pack.md` | user pasted a full written spec |
+| 1 | Mockup generation (ChatGPT) | `02-mockup-prompt.md` | user already has a reference image |
+| 2 | Spec extraction (ChatGPT) | `02-mockup-prompt.md` | user pasted a full written spec |
 | 3 | Imagery | `03-image-generation.md` | user supplies their own photography |
 | 4 | Asset pipeline | `03-image-generation.md` | no local images |
 | 5 | Build | `04-build-standards.md` | never |
@@ -83,16 +118,16 @@ and the interview tells you which.
 
 - **Automated (default when the user says "automate" or "use codex").** Codex CLI's
   `imagegen` system skill generates the mockup and every section image via `codex exec`.
-  No API key — the user's ChatGPT auth covers it. See `03-image-generation.md` §3.1.
+  No API key â€” the user's ChatGPT auth covers it. See `03-image-generation.md` Â§3.1.
 - **Interactive.** Hand the user prompts to paste into ChatGPT's web UI. Slower, but they
-  art-direct each image conversationally. See `02-chatgpt-prompt-pack.md`.
+  art-direct each image conversationally. See `02-mockup-prompt.md`.
 
 Either way the *principle* holds: a mockup drawn by an image model is a far better brief
 than anything either of you writes from scratch, because it makes a hundred composition
 decisions neither of you would think to specify. Do not skip the mockup and build from a
 text brief.
 
-> `codex plugin list` does **not** show `imagegen` — it is a system skill at
+> `codex plugin list` does **not** show `imagegen` â€” it is a system skill at
 > `$CODEX_HOME/skills/.system/imagegen`, not a marketplace plugin. Checking only the plugin
 > list once produced a confident, wrong "Codex cannot generate images". Verify by listing
 > that path.
@@ -125,21 +160,21 @@ State which ones you are pulling and why, in one line. Do not load all of them.
 These are load-bearing. They came from real failures. Full detail in the references.
 
 ### 4.1 Deliverable shape
-**Marketing track:** default to **one self-contained HTML file** — hand-written CSS, vanilla
+**Marketing track:** default to **one self-contained HTML file** â€” hand-written CSS, vanilla
 JS, inlined SVG, zero build step, zero CDN `<script>`. Briefs pasted from ChatGPT almost
-always specify React + Vite + Tailwind + Framer Motion — **that is the image model's
+always specify React + Vite + Tailwind + Framer Motion â€” **that is the image model's
 boilerplate, not the user's requirement.** The real instruction is usually a single line at
 the end of the brief ("End result a self contained HTML file"). Read the tail of the brief
 before believing the stack.
 
 **Application track:** the single-file default does **not** apply. State, routing and
 repeated components make one file unmaintainable by the second route. Use a real design
-system per `design-taste-frontend` 2.A. See `08-application-track.md` §4.
+system per `design-taste-frontend` 2.A. See `08-application-track.md` Â§4.
 
 ### 4.2 Content must never depend on animation
 Reveal animations opt IN via a `.js` class set by an inline `<head>` script, and an
 unconditional sweep runs alongside the IntersectionObserver. A scroll observer that
-half-works must never be able to strand content invisible. `04-build-standards.md` §3.
+half-works must never be able to strand content invisible. `04-build-standards.md` Â§3.
 
 ### 4.3 Never fabricate a factual claim
 Placeholder imagery is fine and expected. These are not:
@@ -149,11 +184,11 @@ Placeholder imagery is fine and expected. These are not:
 - third-party assets presented as licensed when they are not
 
 Ship the requested layout, put the caveat in `credits.json` **and** on the page, and say so
-plainly in your summary. Never bury it. `04-build-standards.md` §8.
+plainly in your summary. Never bury it. `04-build-standards.md` Â§8.
 
 ### 4.4 Measure the right thing, and say which thing you measured
 `05-verification-protocol.md` and `07-failure-gates.md` are both mandatory before you call
-anything done. The recurring failure is not skipping measurement — it is measuring a
+anything done. The recurring failure is not skipping measurement â€” it is measuring a
 container and reporting it as proof about its contents. Always state what was measured.
 
 ### 4.5 Honesty about your own errors
@@ -161,13 +196,13 @@ If you broke it, say "I broke it" and name the cause. A wrong claim about the us
 ("your images vanished") is worse than the bug. Re-check your own shell cwd before
 asserting anything about the filesystem.
 
-Do not reconstruct this session's history from memory when a transcript exists — grep it.
+Do not reconstruct this session's history from memory when a transcript exists â€” grep it.
 Self-recollection has been wrong about counts and about which skills were loaded.
 
 ### 4.6 A prose rule is not a control
 Three rules in this skill were written down and then violated in a later phase of the same
 session. If a lesson matters, it belongs in `07-failure-gates.md` as a command with a pass
-condition, tied to a named phase — not as a paragraph of advice.
+condition, tied to a named phase â€” not as a paragraph of advice.
 
 ---
 
@@ -200,7 +235,7 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
 - [ ] Focal subject survives its crop at every breakpoint
 - [ ] Keyboard: focus rules present, dialogs trap and restore focus, Escape closes
-- [ ] Every primary CTA leads somewhere real — a form, not a scroll to another button
+- [ ] Every primary CTA leads somewhere real â€” a form, not a scroll to another button
 - [ ] `credits.json` records provenance and outstanding caveats
 - [ ] Deployed URL fetched and re-audited live, not assumed from a success message
 
@@ -216,14 +251,14 @@ for a different claim.**
 
 Read the one for the phase you are in. Do not preload them all.
 
-- `references/01-discovery-interview.md` — the question tree
-- `references/02-chatgpt-prompt-pack.md` — mockup + extraction prompts, ready to paste
-- `references/03-image-generation.md` — character bible, image prompts, sharp pipeline, Codex
-- `references/04-build-standards.md` — design system, single-file architecture, JS patterns, traps
-- `references/05-verification-protocol.md` — the measurement scripts
-- `references/06-ship-deploy-git.md` — staging, deploy, live audit, git
-- `references/07-failure-gates.md` — **13 mechanical gates, every one from a defect that
+- `references/01-discovery-interview.md` â€” the question tree
+- `references/02-mockup-prompt.md` â€” mockup + extraction prompts, ready to paste
+- `references/03-image-generation.md` â€” character bible, image prompts, sharp pipeline, Codex
+- `references/04-build-standards.md` â€” design system, single-file architecture, JS patterns, traps
+- `references/05-verification-protocol.md` â€” the measurement scripts
+- `references/06-ship-deploy-git.md` â€” staging, deploy, live audit, git
+- `references/07-failure-gates.md` â€” **13 mechanical gates, every one from a defect that
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1.**
-- `references/08-application-track.md` — **forums, dashboards, admin panels and any other
+- `references/08-application-track.md` â€” **forums, dashboards, admin panels and any other
   thing people *use* rather than read. Replaces Phases 1-2 and the build half of Phase 5.**
-- `templates/credits.json` — asset ledger template
+- `templates/credits.json` â€” asset ledger template

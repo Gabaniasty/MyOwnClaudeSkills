@@ -1,4 +1,55 @@
-# Phases 1 & 2 — The ChatGPT Prompt Pack (interactive route)
+# Phases 1 & 2 — Deriving and generating the mockup
+
+## §0. DERIVE THE SECTIONS. NEVER REACH FOR A TEMPLATE.
+
+This is the one genuinely creative step in the pipeline and the one most likely to be
+skipped. Before writing a single line of the mockup prompt, answer four questions about the
+**subject**, not about websites:
+
+1. **Who arrives, and what are they trying to find out?**
+2. **What must this thing PROVE before that person will act?**
+3. **What is the single action that counts as success?**
+4. **What would a sceptic of this specific thing want to see?**
+
+The section list falls out of the answers. Different subjects prove different things, so
+they get different sections. Worked examples:
+
+| Subject | Must prove | Sections that follow |
+|---|---|---|
+| Gym | real coaches, real results, it's for people like me | founders, programmes, **transformations**, member quotes, trial CTA |
+| Dental clinic | clinical credibility, calm, discretion | lead clinician, treatments, **smile gallery**, practice interior, consultation CTA |
+| Hotel | the place is beautiful and the room is the product | location film, **rooms**, dining, spa, availability CTA |
+| **Community forum** | **it is ALIVE, organised, and worth joining** | **live recent-thread feed, member/post counts, category grid, best-of discussion, rules/moderation, join CTA** |
+| SaaS product | it works, it's safe, it's worth switching to | product UI shot, integrations, security, pricing, trial CTA |
+| Restaurant | the food, the room, can I get a table tonight | dishes, interior, chef, hours, booking CTA |
+
+Note how little overlap there is. A forum has no "testimonials" section and no "features"
+grid; it has **activity**, because a dead forum is a worthless forum and proving liveness is
+the entire job. A gym has no "categories"; it has transformations, because proof of results
+is the entire job.
+
+**The test for a derived section list:** could you swap this list onto a different business
+in a different industry? If yes, it is a template and you have not derived anything.
+
+### For a forum specifically, the proof is liveness
+Sections must show, not claim: recent threads with real titles, timestamps and reply counts;
+who is online now; how many posts this week. A forum landing page that says "join our
+vibrant community" and shows nothing is the exact failure this section exists to prevent.
+
+---
+
+## §0.5. The loop repeats per page
+
+The steps below produce **one** page. For a multi-page project, run the whole loop again for
+each screen, and pass the first approved mockup as `-i` to every later generation so palette,
+type and component family stay locked (`image-to-code` §34).
+
+Order matters: build the page that establishes the brand world first, then derive the others
+against it.
+
+---
+
+## The interactive route (ChatGPT) vs the automated route (Codex)
 
 > **This is the interactive route.** For the automated route — Codex CLI's `imagegen` skill
 > generating the mockup and every asset with no copy-pasting — see `03-image-generation.md`
