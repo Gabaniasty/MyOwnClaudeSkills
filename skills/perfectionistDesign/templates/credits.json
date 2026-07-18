@@ -1,0 +1,53 @@
+{
+  "_project": "<Brand> - <what the page is>",
+  "_updated": "<YYYY-MM-DD>",
+
+  "_imagery": "Where every image came from. State plainly whether it is client supplied, generated, or licensed stock, and where the masters live.",
+
+  "_HONESTY": "CAPITALISED section for anything that is a factual claim rather than decoration. Before/after pairs, testimonials attached to portraits, result figures, and third-party assets all belong here. Say what is unverified and what must be confirmed before publishing. Do not delete this key just because it is currently empty - write 'none outstanding'.",
+
+  "_faceBand": "For any hero or focal image: the measured rectangle the subject occupies, as fractions of the source. e.g. 'x 58-87%, y 7-32%. Measured off the file, not estimated. Any future crop must keep that rectangle whole.'",
+
+  "_cropStrategy": "How the hero survives every breakpoint. Record the cap, the pin side, the mobile fallback, and the widths at which it was verified.",
+
+  "processing": "Resized with sharp. Progressive JPEG q82 (mozjpeg) + WebP q80. Note any cropping, and explicitly note where none was applied.",
+
+  "placements": [
+    {
+      "slot": "Hero background",
+      "source": "_masters/<file>.png (<w>x<h>)",
+      "files": "<slug>-{800,1200,1672}.{jpg,webp}",
+      "note": "Composition notes and object-position reasoning."
+    },
+    {
+      "slot": "<Section> - <Card name>",
+      "source": "_masters/<file>.png",
+      "files": "<slug>-{520,800}.{jpg,webp}"
+    }
+  ],
+
+  "attribution": [
+    {
+      "file": "<slug>-800.jpg",
+      "photographer": null,
+      "sourceUrl": "<url>",
+      "licence": "<e.g. Unsplash Licence>",
+      "_note": "Never invent a photographer. Record null plus the source URL and a note to complete it."
+    }
+  ],
+
+  "thirdParty": {
+    "_when": "Only if assets belong to someone else.",
+    "copyrightHolder": "<who>",
+    "licensedToThisProject": false,
+    "obtainedFrom": "<the holder's own public media page>",
+    "disclaimer": "Where the unaffiliated/fan-concept disclaimer appears on the page.",
+    "publicRepoWarning": "Acceptable in a private repo. Publishing publicly is redistribution - decide deliberately."
+  },
+
+  "unused_supplied": [
+    "<file> - <what it shows, and why it was not placed>"
+  ],
+
+  "_beforeDeploying": "images/_masters/ is <n> MB and images/_superseded/ is <n> MB. Exclude both from any deployment; only the optimised variants in images/ are referenced by the page."
+}
