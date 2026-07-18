@@ -33,21 +33,41 @@ background image:**
 
 ```js
 (() => {
-  const bad = [];
-  document.querySelectorAll('img, video, picture, [style*="background-image"]').forEach(el => {
-    const p = el.parentElement; if (!p) return;
+  // An overflow is a DEFECT only when NOTHING clips it. Two mistakes to avoid:
+  //   1. Checking only the immediate parent. <picture> is inline and never clips,
+  //      so every <picture><img> pair reports a false positive.
+  //   2. Treating "overflows its clipper" as a defect. A scaled image inside an
+  //      overflow:hidden wrapper is the effect working, not a bug.
+  function hasClippingAncestor(el) {
+    let n = el.parentElement;
+    while (n && n !== document.body) {
+      const cs = getComputedStyle(n);
+      if (/hidden|clip|auto|scroll/.test(cs.overflow) || cs.clipPath !== 'none') return n;
+      n = n.parentElement;
+    }
+    return null;
+  }
+  const defects = [];
+  document.querySelectorAll('img, video, [style*="background-image"]').forEach(el => {
+    if (hasClippingAncestor(el)) return;                    // clipped somewhere: safe
+    const p = el.closest('figure, section, div') || el.parentElement;
+    if (!p || p === el) return;
     const a = el.getBoundingClientRect(), b = p.getBoundingClientRect();
     const oy = Math.round(a.bottom - b.bottom), ox = Math.round(a.right - b.right);
-    const clipped = /hidden|clip|auto|scroll/.test(getComputedStyle(p).overflow);
-    if ((oy > 1 || ox > 1) && !clipped)
-      bad.push({ el: el.tagName + '.' + (el.className||'').toString().split(' ')[0],
-                 overflowsY: oy, overflowsX: ox, parentOverflow: getComputedStyle(p).overflow });
+    if (oy > 1 || ox > 1)
+      defects.push({ src: (el.getAttribute('src')||'').split('/').pop(),
+                     parent: p.className || p.tagName, overflowY: oy, overflowX: ox });
   });
-  return { childrenOverflowingUnclippedParents: bad.length, detail: bad };
+  return { childrenEscapingUnclipped: defects.length, detail: defects };
 })()
 ```
 
 **Pass condition: `0`.** Report the number.
+
+> The first version of this gate was wrong in both directions and fired 5 false
+> positives on its first real run. A gate that cries wolf gets ignored, which is
+> the failure this file exists to prevent. If a gate fires, **verify the finding
+> before acting on it** - exactly as you would a user-reported bug.
 
 ### The CSS trap behind it
 `height: 100%` on a grid item resolves against the grid *area*. With no explicit row track
