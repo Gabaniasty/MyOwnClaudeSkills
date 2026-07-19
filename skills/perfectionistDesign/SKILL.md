@@ -61,6 +61,25 @@ words appear anywhere in this skill.
 > derived it from the subject, you have skipped step 2 and are about to build a template.
 > See `references/02-mockup-prompt.md` Â§0.
 
+## 0.6 RUN THE PHASE ENTRY CHECKS
+
+**`references/09-phase-entry-checks.md` is the most important file here.** Open the relevant
+block when you *enter* a phase, before doing the work.
+
+`07-failure-gates.md` is forensic — it explains defects once they exist. That is why, in the
+session that produced it, **four of its own rules were broken again by the agent that wrote
+them**: a gate you read at Phase 6 cannot prevent a mistake you make at Phase 3.
+
+The four checks that catch the most, in one line each:
+
+1. **Analysing a mockup** — inventory every *element* (backgrounds, icons, dividers, badges),
+   not just sections. Crop at full resolution.
+2. **Generating assets** — every small square asset is its own 1:1 image. Never a sheet.
+3. **Any "is it done?" check** — doubt the check before the artefact. Absence and failure
+   were misreported six times in one session; the artefact was fine every time.
+4. **Verifying** — measure the property you are claiming, and check the **set**, not just
+   each item.
+
 ## 1. TRIGGER AND FIRST MOVE
 
 Fires on: "build me a X website", "landing page for X", "redesign this", a pasted brief,
@@ -261,4 +280,6 @@ Read the one for the phase you are in. Do not preload them all.
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1.**
 - `references/08-application-track.md` â€” **forums, dashboards, admin panels and any other
   thing people *use* rather than read. Replaces Phases 1-2 and the build half of Phase 5.**
+- `references/09-phase-entry-checks.md` - **PREVENTIVE. Run the relevant block when
+  ENTERING a phase. Read this one before you need it, not after.**
 - `templates/credits.json` â€” asset ledger template
