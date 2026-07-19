@@ -306,7 +306,61 @@ names a skill, that is not a suggestion.
 
 ---
 
-## GATE 13 — Fix latent copies of any bug you find
+## GATE 13 — Never slice a generated sheet on a computed grid
+
+**One asset per generation. Small square assets get their own 1:1 image.**
+
+Eight forum avatars were generated as a single 4x2 "sheet" and sliced at computed 512px
+intervals. Every one came out visibly off-centre. Measured offsets against the assumed grid:
+
+```
+cell 1  dx=+44 dy=+20      cell 5  dx=+53 dy=-52
+cell 4  dx=-48 dy=+37      cell 7  dx=-28 dy=-62
+```
+
+Up to 12% off on a 512px cell, then `fit: cover` compounded it. The user spotted it
+immediately; the reference audit did not, because every file resolved.
+
+**Why it cannot be fixed by cropping smarter.** Even correcting to the detected centroid
+does not save it: the emblem bounding boxes measured 355x179 for one and 239x345 for
+another. A single square crop frames a wide subject and a tall subject completely
+differently. The sheet was the wrong artefact, not the crop.
+
+### The rule
+| Asset | How to generate |
+|---|---|
+| Avatars, icons, badges, logos, any small square | **one 1:1 image per asset**, subject centred, ~60% of frame, even margins |
+| Hero, section background, editorial photo | one image at the section's real aspect ratio |
+| A set that must look related | generate individually, pass the first as `-i` to the rest |
+
+Put the framing in the prompt so no crop is ever needed:
+
+> Square, 1:1. A single subject **precisely centred**, occupying roughly the middle 60% of
+> the frame with even margin on all four sides. It must not touch or approach the edges.
+> **Do not generate a grid, sheet, contact sheet or montage.**
+
+### If you inherit a sheet anyway
+Detect actual content bounds per cell; never slice at computed intervals. But treat that as
+salvage, not as the method:
+
+```js
+// per nominal cell: centroid + bbox of non-background pixels
+let sx=0, sy=0, n=0, minX=1e9, maxX=-1, minY=1e9, maxY=-1;
+for (…) if (Math.max(r,g,b) > 70) { sx+=x; sy+=y; n++; /* track bbox */ }
+const cx = sx/n, cy = sy/n;   // compare against the assumed centre
+```
+If any `|dx|` or `|dy|` exceeds 3% of cell width, the grid assumption is invalid — regenerate
+individually.
+
+### The general lesson for asset planning
+When analysing a mockup, **enumerate every distinct asset and choose a generation strategy
+per asset before generating anything.** Small repeated elements are the ones most likely to
+be batched for convenience, and they are exactly the ones where batching fails, because they
+are displayed small and centred where any offset reads as broken.
+
+---
+
+## GATE 14 — Fix latent copies of any bug you find
 
 The reveal-gating bug hid ten images on one page and was **latent in two others**. The rAF
 latch deadlock was the same. When you find a defect in shared code, grep the other projects

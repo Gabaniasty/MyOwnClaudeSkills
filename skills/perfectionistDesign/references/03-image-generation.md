@@ -67,6 +67,25 @@ tighter human control. Offer both; default to Codex when the user asks for autom
 
 ---
 
+## 3.15 Plan the asset list BEFORE generating anything
+
+Read the mockup and enumerate **every distinct image the page needs**, then pick a
+generation strategy per asset. Do this as a written list, not in your head — the assets that
+get batched for convenience are the ones that fail.
+
+| Asset kind | Strategy |
+|---|---|
+| Hero / section background | one image at the section's real aspect ratio, with the text-safe area named in the prompt |
+| Editorial or card photo | one image per card, at the card's measured ratio |
+| **Avatars, icons, badges, small square marks** | **one 1:1 image each. Never a sheet.** |
+| A related set (same people, same world) | generate individually, pass the first as `-i` to the rest |
+| Simple line icons | inline SVG, do not generate at all |
+
+> **Never generate a grid/sheet/montage and slice it.** Image models do not place elements
+> on a mathematical grid. Eight avatars generated as a 4x2 sheet measured up to 53px off
+> their assumed cell centres and every one rendered visibly off-centre. See
+> `07-failure-gates.md` Gate 13 for the measurements and the salvage procedure.
+
 ## 3.2 The Character Bible (non-optional for generated people)
 
 Any site showing the same brand's people across multiple sections needs fixed characters,
