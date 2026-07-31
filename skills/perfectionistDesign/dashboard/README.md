@@ -1,7 +1,6 @@
 # dashboard
 
-A local control panel for the perfectionistDesign pipeline. Prompt Claude, generate
-images, run every gate, and deploy — from one page, with live progress.
+One chat window. You talk to **Perfectionist**, and you watch it work.
 
 ```bash
 node dashboard/server.mjs
@@ -19,33 +18,48 @@ already pay for:
 
 | | Sign in once | Cost per request |
 |---|---|---|
-| Claude (chat, building) | `claude` | none — your Claude plan |
-| Images (Codex) | `codex login --device-auth` | none — your ChatGPT plan |
+| Claude — the agent | `claude` | none, your plan |
+| Images — Codex | `codex login --device-auth` | none, your plan |
+| Breeze — deploying | key in Settings | — |
 
 The dashboard checks both at startup and shows their status in Settings. In
 subscription mode it **deletes any inherited `ANTHROPIC_API_KEY`** from the child
 process environment — if one is exported globally it would silently bill you, which
-is exactly what subscription mode is for.
+is exactly what subscription mode exists to avoid.
 
-API keys are available for anyone who wants them (Settings → *how to authenticate*),
-but nothing here requires one except **Breeze, for deploying**.
+API-key mode is there for anyone who wants it. **Breeze is the only key this needs
+at all, and only to deploy.**
 
 ---
 
-## What each stage does
+## How it works
 
-| Stage | What happens |
+Perfectionist runs the Claude Code CLI **inside the project folder**, so it reads and
+writes the real files. Its reply streams in token by token. Everything it touches
+shows up as it happens:
+
+- **trace lines** — `read …/demo/index.html`, `edited …/images/hero.jpg`
+- **activity cards** — a live progress bar with per-item state, so "generating image
+  7 of 34" is visible rather than inferred
+
+It drives the pipeline itself through MCP tools rather than shelling out:
+
+| Tool | What the card shows |
 |---|---|
-| **1. Brief & build** | Talks to Claude **in the project folder**, so it reads and writes the real files. Streams the reply token by token and shows every tool call. Threads continue across messages; *New thread* starts fresh. |
-| **2. Generate images** | Runs `run-imagegen.ps1` over `scratch/prompts/*.txt`. Per-asset progress, live. Leave the box empty for everything, or list slugs to regenerate a few. |
-| **3. Process assets** | Masters → variants, srcsets reconciled from disk, references audited both directions. |
-| **4. Run the gates** | References, tag tree, markup faults, unused assets. Each reports its numbers. |
-| **5. Preview & audit** | Opens the page from the project folder. *Copy browser audit* puts `audit.browser.js` on your clipboard — paste it into devtools and run `await pdAudit()` at each breakpoint. |
-| **6. Deploy** | Stages a folder derived from the document, uploads to Breeze, then **HEAD-checks every asset on the live host**. A deploy tool's success message is not evidence the page renders. |
+| `generate_images` | one row per asset, live, with size and time |
+| `process_assets` | masters → variants, srcsets, reference audit |
+| `run_gates` | each gate and its numbers |
+| `stage_build` | the derived deploy folder, with `referenced === copied` |
+| `deploy` | stage → connect → authenticate → upload → verify live |
 
-**Permission mode** on the chat controls what Claude may do without asking:
-`auto-accept edits` (default), `plan only` (reads and proposes, writes nothing), or
-`ask each time`.
+Going through MCP is what makes progress visible. If the agent just ran the scripts
+through Bash, you would see one opaque tool call and a wall of text half an hour
+later.
+
+**Deploy** also sits in the header for when you just want to ship.
+
+**Permission mode**, next to the composer: *build freely* (default) lets it write;
+*plan only* lets it read and propose but never write.
 
 ---
 
@@ -55,37 +69,39 @@ but nothing here requires one except **Breeze, for deploying**.
 
 - Keys are **never sent back to the browser**. The UI only ever sees a masked form
   (`hk_Rt…GQQ (35 chars)`).
-- Every job's output is **redacted** before it is streamed: a child process that
-  echoes its own environment on error cannot leak a key into the page.
-- *Test key* proves the Breeze key end-to-end against the control plane before you
-  try to deploy, and reports the tenant it authenticated as.
+- Every streamed line is **redacted** first: a child process that echoes its own
+  environment on error cannot leak a key into the chat.
+- *Test key* proves the Breeze key against the control plane before you try to
+  deploy, and reports which tenant it authenticated as.
 
-Masking is not decoration. It is what caught a real bug where a repair script had
-silently replaced one project's key with another's — the mask showed `hk_Mj…` where
-the user had typed `hk_Rtj…`. See Gate 25.
+Masking is not decoration — it is what caught a real bug where a repair script had
+silently replaced one project's key with another's. The mask read `hk_Mj…` where the
+user had typed `hk_Rtj…`. See Gate 25.
 
 ---
 
 ## What it does not do
 
-It does not replace Claude. The discovery interview, reading the mockup, deciding
-the sections and writing the page all stay with the model — that is judgement, and
-encoding it in a form would make it worse. This panel is the cockpit for everything
-mechanical around that.
+It does not replace the skill. Perfectionist loads `perfectionistDesign` and follows
+it — the interview, the mockup, the derived sections, the gates. The dashboard is the
+window onto that, not a substitute for it.
 
 ---
 
 ## Troubleshooting
 
-**"The Claude CLI is not on PATH"** — install Claude Code, then run `claude` once to
-sign in.
+**"claude CLI missing"** in the composer — install Claude Code, then run `claude` once
+to sign in.
 
-**Images fail immediately** — run `codex login --device-auth`. Check Settings; the
-CLI status pills go red when a binary is missing.
+**Images fail immediately** — run `codex login --device-auth`. Settings shows both CLIs
+with a red pill when a binary is missing.
 
-**Deploy says the key was rejected** — open Settings and press *Test key*. A `401`
-there means the control plane rejected it; re-copy it from the Breeze panel's
-*Get my key*.
+**Deploy says the key was rejected** — Settings → *Test key*. A `401` means the control
+plane rejected it; re-copy it from the Breeze panel's *Get my key*.
 
-**A gate fails but the page looks fine** — read the Output panel. Then re-run that
-one gate on its own. If it passes alone, the harness was wrong, not the page.
+**The agent says it cannot find the pipeline tools** — they are namespaced
+`mcp__pipeline__*`. If they are genuinely absent, check `dashboard/.local/mcp-<project>.json`
+exists and that `node dashboard/mcp/pipeline-mcp.mjs` answers a `tools/list` request.
+
+**A gate fails but the page looks fine** — open the card's *details*, then re-run that
+one gate alone. If it passes in isolation, the harness was wrong, not the page.

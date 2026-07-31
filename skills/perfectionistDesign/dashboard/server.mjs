@@ -129,6 +129,7 @@ function run(job, cmd, args, opts = {}) {
         opts.onLine?.(l);
       }
     };
+    if (job) job.child = child;
     child.stdout.on("data", (b) => feed(b, "log"));
     child.stderr.on("data", (b) => feed(b, "warn"));
     child.on("error", (e) => { jobLog(job, `spawn error: ${e.message}`, "error"); resolveRun({ code: -1, out }); });
@@ -354,7 +355,11 @@ async function jobChat(projectPath, prompt, opts = {}) {
      with --permission-mode auto, while the identical command worked from a plain
      shell. The child must get a clean slate. */
   for (const k of Object.keys(env)) {
-    if (/^(CLAUDE_CODE|CLAUDECODE|CLAUDE_CONFIG)/.test(k)) delete env[k];
+    /* CLAUDE_CONFIG_DIR is deliberately NOT stripped — it is where the user's
+       skills live, and removing it left the agent unable to find
+       perfectionistDesign at all. Only the parent session's own runtime context
+       goes. */
+    if (/^(CLAUDE_CODE|CLAUDECODE)/.test(k)) delete env[k];
   }
 
   /* --add-dir is required, not optional. Spawned non-interactively into a folder
@@ -362,8 +367,57 @@ async function jobChat(projectPath, prompt, opts = {}) {
      approval for this path" — and in --print mode there is nobody to approve, so
      the model just reports that it could not read anything. Naming the project
      folder explicitly is what makes the session able to work in it. */
+  /* Perfectionist's identity and standing orders. Kept short on purpose: the
+     detail lives in the skill, and repeating it here would let the two drift. */
+  const SYSTEM = [
+    "You are Perfectionist, the agent behind the perfectionistDesign pipeline.",
+    "You are talking to the user inside a dashboard, not a terminal. Narrate what you are",
+    "doing in short plain sentences as you go, so they can follow along. No preamble, no",
+    "recaps of what they just said.",
+    "",
+    "Follow the perfectionistDesign skill for how to work — invoke it with the Skill tool at",
+    "the start of any build or redesign. Its failure gates are not optional, and every claim",
+    "you make about the page must be backed by a measurement you actually ran.",
+    "",
+    "\"The gates\" always means that skill's mechanical checks, run through your run_gates",
+    "tool. It never means npm test or a CI pipeline — do not go looking for one.",
+    "",
+    "You have pipeline tools, namespaced under mcp__pipeline__:",
+    "  mcp__pipeline__generate_images   every prompt in scratch/prompts, live progress",
+    "  mcp__pipeline__process_assets    masters to variants, srcsets, reference audit",
+    "  mcp__pipeline__run_gates         the skill's mechanical checks",
+    "  mcp__pipeline__stage_build       assemble a clean deploy folder",
+    "  mcp__pipeline__deploy            publish to Breeze, then verify every asset live",
+    "USE THESE rather than shelling out to the scripts yourself — they are what shows the",
+    "user live progress. Write the prompt .txt files into scratch/prompts first, then call",
+    "generate_images. Never call deploy without asking first: it publishes.",
+    "",
+    "Interview before you build. If the brief is thin, ask the few questions that would",
+    "change what you make, then get on with it.",
+  ].join("\n");
+
+  /* --mcp-config takes a FILE path, not an inline JSON string.
+     A JSON string is full of quotes, and on Windows the CLI is a .cmd shim
+     spawned through a shell, which mangles them — the config silently did not
+     apply and the agent went looking for the pipeline with Bash and Grep instead
+     of calling its tools. Same trap as the prompt argument (Gate 12): anything
+     with quotes or spaces goes through a file or stdin, never argv. */
+  await mkdir(LOCAL, { recursive: true });
+  const mcpPath = join(LOCAL, `mcp-${proj}.json`);
+  const sysPath = join(LOCAL, `system-${proj}.txt`);
+  await writeFile(sysPath, SYSTEM, "utf8");
+  await writeFile(mcpPath, JSON.stringify({ mcpServers: { pipeline: {
+    command: process.execPath,
+    args: [join(HERE, "mcp", "pipeline-mcp.mjs")],
+    env: { PD_DASHBOARD_URL: `http://127.0.0.1:${PORT}`, PD_PROJECT: proj },
+  } } }, null, 2), "utf8");
+
   const args = ["--print", "--output-format", "stream-json", "--include-partial-messages",
     "--verbose", "--add-dir", projectPath,
+    "--append-system-prompt-file", sysPath,
+    "--mcp-config", mcpPath,
+    /* the skill lives outside the project, so the session has to be told where */
+    "--add-dir", SKILL,
     "--permission-mode", opts.permissionMode || s.permissionMode || "auto"];
   if (s.model) args.push("--model", s.model);
   const prev = chatSessions.get(proj);
@@ -379,6 +433,7 @@ async function jobChat(projectPath, prompt, opts = {}) {
     let buf = "";
     const child = spawn("claude", args, { cwd: projectPath, env,
       shell: needsShell("claude"), stdio: ["pipe", "pipe", "pipe"] });
+    job.child = child;
     child.stdin.write(prompt);
     child.stdin.end();
 
@@ -537,6 +592,24 @@ const server = createServer(async (req, res) => {
         projects: await listProjects(),
         jobs: [...jobs.values()].slice(-12).map(publicJob),
       });
+    }
+
+    /* Stop must actually kill the process tree. A spawned `claude` on Windows sits
+       under a .cmd shim, so killing the shim alone leaves the real one running —
+       which is exactly the situation where a user pressing Stop assumes it stopped. */
+    if (p === "/api/stop" && req.method === "POST") {
+      let killed = 0;
+      for (const [, job] of jobs) {
+        if (job.status !== "running" || !job.child) continue;
+        try {
+          if (process.platform === "win32") spawn("taskkill", ["/PID", String(job.child.pid), "/T", "/F"], { shell: false });
+          else job.child.kill("SIGTERM");
+          killed++;
+          jobLog(job, "stopped by the user", "error");
+          jobEnd(job, "fail");
+        } catch {}
+      }
+      return json(res, 200, { ok: true, killed });
     }
 
     if (p === "/api/chat" && req.method === "POST") {
