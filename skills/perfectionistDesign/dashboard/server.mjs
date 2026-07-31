@@ -1,0 +1,686 @@
+/* perfectionistDesign — local control panel.
+ *
+ * Runs the pipeline scripts and streams their progress to a browser. It does not
+ * replace Claude: the interview, the mockup analysis and the page itself stay
+ * with the model. This is the cockpit for everything mechanical — generating
+ * images, processing assets, running the gates, deploying.
+ *
+ * SECURITY POSTURE
+ *   - binds 127.0.0.1 only, never 0.0.0.0
+ *   - the Breeze API key lives in dashboard/.local/settings.json (gitignored),
+ *     is never sent to the browser, never logged, and never appears in a job's
+ *     streamed output — see redact()
+ *   - no credential is bundled: every user supplies their own
+ *   - image generation uses the user's own `codex login`, no API key at all
+ *
+ * Zero dependencies, matching the skill's own single-file ethos.
+ *   node dashboard/server.mjs [--port=4180] [--workspace=<dir>]
+ */
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { readFile, writeFile, mkdir, readdir, stat, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, extname, resolve, dirname, basename } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SKILL = resolve(HERE, "..");
+const SCRIPTS = join(SKILL, "scripts");
+const LOCAL = join(HERE, ".local");
+const SETTINGS = join(LOCAL, "settings.json");
+
+const arg = (n, d) => {
+  const h = process.argv.find((a) => a.startsWith(`--${n}=`));
+  return h ? h.slice(n.length + 3) : d;
+};
+const PORT = +arg("port", 4180);
+let WORKSPACE = resolve(arg("workspace", process.env.PD_WORKSPACE || join(SKILL, "..", "..", "..", "pd-projects")));
+
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".webp": "image/webp", ".ico": "image/x-icon", ".woff2": "font/woff2", ".mjs": "text/javascript; charset=utf-8" };
+
+/* ------------------------------------------------------------------ settings */
+async function loadSettings() {
+  try { return JSON.parse(await readFile(SETTINGS, "utf8")); } catch { return {}; }
+}
+async function saveSettings(next) {
+  await mkdir(LOCAL, { recursive: true });
+  await writeFile(SETTINGS, JSON.stringify(next, null, 2), "utf8");
+}
+const mask = (k) => (k ? `${k.slice(0, 5)}…${k.slice(-3)} (${k.length} chars)` : null);
+
+/* Any secret must be scrubbed from streamed output. A child process can echo its
+   own environment on error, and this stream goes straight to a browser. */
+function redact(text, secrets) {
+  let s = text;
+  for (const v of secrets) if (v && v.length > 6) s = s.split(v).join("«redacted»");
+  return s;
+}
+
+/* ------------------------------------------------------------------ jobs */
+const clients = new Set();
+const jobs = new Map();          // id -> {id, kind, project, status, steps, log}
+let nextId = 1;
+
+function emit(evt) {
+  const line = `data: ${JSON.stringify(evt)}\n\n`;
+  for (const c of clients) { try { c.write(line); } catch {} }
+}
+
+function newJob(kind, project, steps) {
+  const job = { id: String(nextId++), kind, project, status: "running",
+    startedAt: Date.now(), steps, done: 0, total: steps.length, current: null, log: [], result: null };
+  jobs.set(job.id, job);
+  emit({ type: "job:start", job: publicJob(job) });
+  return job;
+}
+const publicJob = (j) => ({ id: j.id, kind: j.kind, project: j.project, status: j.status,
+  done: j.done, total: j.total, current: j.current, startedAt: j.startedAt,
+  elapsed: Date.now() - j.startedAt, result: j.result });
+
+function jobLog(job, text, level = "log") {
+  const line = { t: Date.now(), level, text };
+  job.log.push(line);
+  if (job.log.length > 4000) job.log.shift();
+  emit({ type: "job:log", id: job.id, line });
+}
+function jobStep(job, name, state, detail) {
+  const s = job.steps.find((x) => x.name === name);
+  if (s) { s.state = state; if (detail !== undefined) s.detail = detail; }
+  if (state === "ok" || state === "fail") job.done = job.steps.filter((x) => x.state === "ok" || x.state === "fail").length;
+  job.current = state === "running" ? name : job.current;
+  emit({ type: "job:step", id: job.id, steps: job.steps, job: publicJob(job) });
+}
+function jobEnd(job, status, result) {
+  job.status = status; job.result = result ?? null;
+  emit({ type: "job:end", job: publicJob(job), steps: job.steps });
+}
+
+/* WINDOWS: shell only for bare command NAMES.
+ *
+ * `npx`, `powershell` and `claude` are .cmd shims on Windows and need a shell.
+ * An absolute path does NOT — and must not get one, because with shell:true the
+ * command is concatenated unquoted, so `C:\Program Files\nodejs\node.exe` becomes
+ * "'C:\Program' is not recognized". Every gate failed for this reason on the
+ * first run of this dashboard.
+ */
+const needsShell = (cmd) => process.platform === "win32" && !/[\\/]/.test(cmd);
+
+/* run a child process, streaming stdout/stderr into the job log */
+function run(job, cmd, args, opts = {}) {
+  return new Promise((resolveRun) => {
+    const secrets = opts.secrets || [];
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd || WORKSPACE,
+      env: { ...process.env, ...(opts.env || {}) },
+      shell: needsShell(cmd),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    if (opts.stdin) { child.stdin.write(opts.stdin); child.stdin.end(); }
+    let out = "";
+    const feed = (buf, level) => {
+      const text = redact(buf.toString(), secrets);
+      out += text;
+      for (const l of text.split(/\r?\n/)) {
+        if (!l.trim()) continue;
+        jobLog(job, l, level);
+        opts.onLine?.(l);
+      }
+    };
+    child.stdout.on("data", (b) => feed(b, "log"));
+    child.stderr.on("data", (b) => feed(b, "warn"));
+    child.on("error", (e) => { jobLog(job, `spawn error: ${e.message}`, "error"); resolveRun({ code: -1, out }); });
+    child.on("close", (code) => resolveRun({ code, out }));
+  });
+}
+
+const node = process.execPath;
+const script = (n) => join(SCRIPTS, n);
+
+/* ------------------------------------------------------------------ pipelines */
+
+async function jobGenerate(projectPath, only) {
+  const promptsDir = join(projectPath, "scratch", "prompts");
+  let slugs = [];
+  try {
+    slugs = (await readdir(promptsDir)).filter((f) => f.endsWith(".txt")).map((f) => f.replace(/\.txt$/, ""));
+  } catch {}
+  if (only?.length) slugs = slugs.filter((s) => only.includes(s));
+  if (!slugs.length) throw new Error("no prompt files in scratch/prompts");
+
+  const job = newJob("generate", basename(projectPath), slugs.map((s) => ({ name: s, state: "pending" })));
+  (async () => {
+    const ps = process.platform === "win32" ? "powershell" : "pwsh";
+    const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script("run-imagegen.ps1"),
+      "-Root", projectPath];
+    if (only?.length) args.push("-Strict", "-Slugs", only.join(","));
+    const r = await run(job, ps, args, {
+      cwd: projectPath,
+      onLine(l) {
+        /* the runner's own vocabulary — keep this in sync with run-imagegen.ps1 */
+        let m = l.match(/^===\s+(\S+)\s+attempt\s+(\d+)\/(\d+)/);
+        if (m) return jobStep(job, m[1], "running", `attempt ${m[2]}/${m[3]}`);
+        m = l.match(/^OK\s+(\S+)\s+(\S+)\s+(\d+)\s*KB/);
+        if (m) return jobStep(job, m[1], "ok", `${m[2]} · ${m[3]} KB`);
+        m = l.match(/^SKIP\s+(\S+)/);
+        if (m) return jobStep(job, m[1], "ok", "already exists");
+        m = l.match(/^FAIL\s+(\S+)\s+(.*)$/);
+        if (m) return jobStep(job, m[1], "fail", m[2]);
+      },
+    });
+    jobEnd(job, r.code === 0 ? "ok" : "fail");
+  })();
+  return job;
+}
+
+async function jobPipeline(projectPath, kind) {
+  const defs = {
+    process: [
+      ["process assets", node, [script("process-assets.cjs"), `--root=${projectPath}`]],
+      ["reconcile srcset", node, [script("reconcile-srcset.cjs"), `--root=${projectPath}`]],
+      ["audit references", node, [script("audit-refs.cjs"), `--root=${projectPath}`]],
+    ],
+    gates: [
+      ["references", node, [script("audit-refs.cjs"), `--root=${projectPath}`]],
+      ["tag tree", node, [script("check-nesting.cjs"), `--root=${projectPath}`]],
+      ["markup faults", node, [script("check-markup.cjs"), `--root=${projectPath}`]],
+      ["unused assets", node, [script("prune-images.cjs"), `--root=${projectPath}`]],
+    ],
+    stage: [
+      ["build deploy folder", node, [script("build-deploy.cjs"), `--root=${projectPath}`,
+        `--out=${join(WORKSPACE, ".deploy", basename(projectPath))}`]],
+    ],
+  }[kind];
+  if (!defs) throw new Error(`unknown pipeline ${kind}`);
+
+  const job = newJob(kind, basename(projectPath), defs.map(([n]) => ({ name: n, state: "pending" })));
+  (async () => {
+    let failed = false;
+    for (const [name, cmd, args] of defs) {
+      jobStep(job, name, "running");
+      const r = await run(job, cmd, args, { cwd: projectPath });
+      const ok = r.code === 0;
+      /* summarise rather than making the user read the log */
+      const nums = r.out.match(/(MISSING|CORRUPT|UNUSED|total faults|unused)\s*:?\s*(\d+)/gi) || [];
+      jobStep(job, name, ok ? "ok" : "fail", nums.slice(0, 3).join("  ") || (ok ? "passed" : "failed"));
+      if (!ok) { failed = true; if (kind !== "gates") break; }   // gates run to completion
+    }
+    jobEnd(job, failed ? "fail" : "ok");
+  })();
+  return job;
+}
+
+/* deploy: drives the Breeze MCP server over stdio, exactly as documented in
+   references/06-ship-deploy-git.md. The key comes from local settings and is
+   redacted out of everything streamed. */
+async function jobDeploy(projectPath, { project, app, port = 8080, mode = "autoscale" }) {
+  const s = await loadSettings();
+  if (!s.breezeKey) throw new Error("no Breeze API key set — add one in Settings first");
+  const outDir = join(WORKSPACE, ".deploy", basename(projectPath));
+
+  const job = newJob("deploy", basename(projectPath), [
+    { name: "stage folder", state: "pending" },
+    { name: "connect", state: "pending" },
+    { name: "authenticate", state: "pending" },
+    { name: "upload + build", state: "pending" },
+    { name: "verify live", state: "pending" },
+  ]);
+
+  (async () => {
+    jobStep(job, "stage folder", "running");
+    const st = await run(job, node, [script("build-deploy.cjs"), `--root=${projectPath}`, `--out=${outDir}`], { cwd: projectPath });
+    if (st.code !== 0) { jobStep(job, "stage folder", "fail"); return jobEnd(job, "fail"); }
+    jobStep(job, "stage folder", "ok", (st.out.match(/deploy folder\s*:\s*([\d.]+ MB)/) || [])[1] || "staged");
+
+    jobStep(job, "connect", "running");
+    const child = spawn("npx", ["-y", "breezedeploy-mcp"], {
+      env: { ...process.env, CONTROL_PLANE_URL: s.breezeUrl || "https://panel.breezedeploy.dev",
+             CONTROL_PLANE_API_KEY: s.breezeKey },
+      shell: needsShell("npx"), stdio: ["pipe", "pipe", "pipe"],
+    });
+    const send = (o) => child.stdin.write(JSON.stringify(o) + "\n");
+    let buf = "", url = null;
+    const secrets = [s.breezeKey];
+
+    child.stderr.on("data", (b) => jobLog(job, redact(b.toString().trim(), secrets), "warn"));
+    child.on("error", (e) => { jobLog(job, `spawn: ${e.message}`, "error"); jobEnd(job, "fail"); });
+
+    child.stdout.on("data", async (b) => {
+      buf += redact(b.toString(), secrets);
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line) continue;
+        let m; try { m = JSON.parse(line); } catch { continue; }
+
+        if (m.id === 1) {
+          jobStep(job, "connect", "ok", m.result?.serverInfo ? `${m.result.serverInfo.name} v${m.result.serverInfo.version}` : "connected");
+          jobStep(job, "authenticate", "running");
+          send({ jsonrpc: "2.0", method: "notifications/initialized" });
+          send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "whoami", arguments: {} } });
+        }
+        if (m.id === 2) {
+          const t = m.result?.content?.[0]?.text || "";
+          if (/error|invalid/i.test(t)) {
+            jobStep(job, "authenticate", "fail", "key rejected by the control plane");
+            jobLog(job, "The key in Settings was rejected. Re-copy it from the Breeze panel.", "error");
+            child.kill(); return jobEnd(job, "fail");
+          }
+          let tid = ""; try { tid = JSON.parse(t).tenantId || ""; } catch {}
+          jobStep(job, "authenticate", "ok", tid ? `tenant ${tid}` : "ok");
+          jobStep(job, "upload + build", "running", "this takes a few minutes");
+          send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "deploy_source",
+            arguments: { project, app, dir: outDir, port, mode } } });
+        }
+        if (m.id === 3) {
+          const t = m.result?.content?.[0]?.text || "";
+          let r = null; try { r = JSON.parse(t); } catch {}
+          if (!r?.url) {
+            jobStep(job, "upload + build", "fail", (t || "no url returned").slice(0, 160));
+            child.kill(); return jobEnd(job, "fail");
+          }
+          url = r.url;
+          jobStep(job, "upload + build", "ok", `${r.status} · ${r.mode} · ${r.size}`);
+          child.kill();
+
+          /* A deploy tool's success message is not evidence the page renders.
+             HEAD every asset on the live host before calling this done. */
+          jobStep(job, "verify live", "running");
+          try {
+            const res = await fetch(url, { cache: "no-store" });
+            const html = await res.text();
+            const refs = [...new Set(html.match(/(?:images|logo)\/[A-Za-z0-9._/-]+\.(?:png|jpe?g|webp|svg|ico)/g) || [])];
+            let bad = 0;
+            for (const a of refs) { const h = await fetch(`${url}/${a}`, { method: "HEAD" }); if (!h.ok) bad++; }
+            const ok = res.ok && bad === 0;
+            jobStep(job, "verify live", ok ? "ok" : "fail", `HTTP ${res.status} · ${refs.length} assets · ${bad} broken`);
+            jobEnd(job, ok ? "ok" : "fail", { url, assets: refs.length, broken: bad });
+          } catch (e) {
+            jobStep(job, "verify live", "fail", e.message);
+            jobEnd(job, "fail", { url });
+          }
+        }
+      }
+    });
+
+    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05",
+      capabilities: {}, clientInfo: { name: "pd-dashboard", version: "1.0.0" } } });
+    setTimeout(() => { if (job.status === "running") { jobLog(job, "timed out after 15 minutes", "error"); child.kill(); jobEnd(job, "fail"); } }, 900000);
+  })();
+  return job;
+}
+
+/* ------------------------------------------------------------------ chat
+ *
+ * Talks to Claude through the Claude Code CLI, in the project directory, so it
+ * can actually read and write the files it is discussing.
+ *
+ * AUTH — subscription by default, and that is the point.
+ *   subscription : spawn `claude` with NO ANTHROPIC_API_KEY in the environment.
+ *                  It uses the login the CLI already has, so there is no API
+ *                  spend at all. Same story for images: `codex` uses the user's
+ *                  ChatGPT login.
+ *   apiKey       : only if the user explicitly chooses it, we pass their key in
+ *                  the environment for this one child process.
+ *
+ * Deleting an inherited ANTHROPIC_API_KEY in subscription mode is deliberate:
+ * if one is exported globally the CLI would silently bill it, which is exactly
+ * what the user asked to avoid.
+ */
+const chatSessions = new Map();   // project -> last session id
+
+async function jobChat(projectPath, prompt, opts = {}) {
+  const s = await loadSettings();
+  const proj = basename(projectPath);
+  const job = newJob("chat", proj, [{ name: "thinking", state: "running" }]);
+  job.chat = { prompt, reply: "" };
+
+  const env = { ...process.env };
+  const secrets = [];
+  if (s.claudeAuth === "apiKey" && s.anthropicKey) {
+    env.ANTHROPIC_API_KEY = s.anthropicKey;
+    secrets.push(s.anthropicKey);
+  } else {
+    /* subscription mode: make sure no inherited key can turn this into spend */
+    delete env.ANTHROPIC_API_KEY;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+  }
+  /* Do NOT inherit the parent agent's own session context.
+     If this dashboard was itself started from inside a Claude Code session, the
+     child claude inherits CLAUDE_CODE_* / CLAUDECODE and runs under the PARENT's
+     permission policy — every Edit came back "blocked pending your approval" even
+     with --permission-mode auto, while the identical command worked from a plain
+     shell. The child must get a clean slate. */
+  for (const k of Object.keys(env)) {
+    if (/^(CLAUDE_CODE|CLAUDECODE|CLAUDE_CONFIG)/.test(k)) delete env[k];
+  }
+
+  /* --add-dir is required, not optional. Spawned non-interactively into a folder
+     the CLI has not seen before, tool calls come back "blocked pending your
+     approval for this path" — and in --print mode there is nobody to approve, so
+     the model just reports that it could not read anything. Naming the project
+     folder explicitly is what makes the session able to work in it. */
+  const args = ["--print", "--output-format", "stream-json", "--include-partial-messages",
+    "--verbose", "--add-dir", projectPath,
+    "--permission-mode", opts.permissionMode || s.permissionMode || "auto"];
+  if (s.model) args.push("--model", s.model);
+  const prev = chatSessions.get(proj);
+  if (prev && !opts.fresh) args.push("--resume", prev);
+  /* THE PROMPT GOES DOWN STDIN, never as an argv element.
+     On Windows `claude` is a .cmd shim, so it must be spawned through a shell,
+     and a shell concatenates argv unquoted. "In one short sentence, ..." reached
+     the CLI as just "In" — it replied asking why the message was cut off. The
+     same rule is already written down for codex in run-imagegen.ps1; it applies
+     to every shell-spawned CLI that takes free text. */
+
+  (async () => {
+    let buf = "";
+    const child = spawn("claude", args, { cwd: projectPath, env,
+      shell: needsShell("claude"), stdio: ["pipe", "pipe", "pipe"] });
+    child.stdin.write(prompt);
+    child.stdin.end();
+
+    child.stdout.on("data", (b) => {
+      buf += redact(b.toString(), secrets);
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line) continue;
+        let m; try { m = JSON.parse(line); } catch { jobLog(job, line); continue; }
+
+        if (m.session_id) chatSessions.set(proj, m.session_id);
+
+        /* partial assistant text — this is what makes it feel live */
+        if (m.type === "stream_event" && m.event?.type === "content_block_delta" &&
+            m.event.delta?.type === "text_delta") {
+          job.chat.reply += m.event.delta.text;
+          emit({ type: "chat:delta", id: job.id, text: m.event.delta.text });
+        }
+        /* a tool the model decided to use — surface it, it is the interesting part */
+        if (m.type === "assistant" && Array.isArray(m.message?.content)) {
+          for (const c of m.message.content) {
+            if (c.type === "tool_use") {
+              const label = c.name === "Bash" ? (c.input?.command || "").slice(0, 90)
+                : c.input?.file_path || c.input?.pattern || c.input?.description || "";
+              jobLog(job, `→ ${c.name}  ${label}`, "warn");
+              emit({ type: "chat:tool", id: job.id, tool: c.name, detail: String(label).slice(0, 120) });
+            }
+          }
+        }
+        if (m.type === "result") {
+          job.chat.reply = m.result || job.chat.reply;
+          /* The CLI reports total_cost_usd whatever the auth mode. On a
+             subscription it is a NOTIONAL equivalent, not a charge, and printing
+             it as "cost" next to a plan the user already pays for reads as a bill
+             they are not getting. Only show money in API-key mode. */
+          if (s.claudeAuth === "apiKey" && m.total_cost_usd) {
+            jobLog(job, `billed: $${m.total_cost_usd.toFixed(4)}`, "warn");
+          } else if (m.usage) {
+            const u = m.usage;
+            jobLog(job, `tokens: ${u.input_tokens ?? "?"} in / ${u.output_tokens ?? "?"} out · subscription, not billed per request`, "warn");
+          }
+          if (m.is_error) jobLog(job, "the model returned an error result", "error");
+        }
+      }
+    });
+    child.stderr.on("data", (b) => {
+      const t = redact(b.toString().trim(), secrets);
+      if (t) jobLog(job, t, "warn");
+    });
+    child.on("error", (e) => {
+      jobLog(job, `could not start the Claude CLI: ${e.message}`, "error");
+      jobLog(job, "Install it, then run `claude` once to sign in with your subscription.", "error");
+      jobStep(job, "thinking", "fail");
+      jobEnd(job, "fail");
+    });
+    child.on("close", (code) => {
+      if (job.status !== "running") return;
+      jobStep(job, "thinking", code === 0 ? "ok" : "fail");
+      emit({ type: "chat:done", id: job.id, reply: job.chat.reply, ok: code === 0 });
+      jobEnd(job, code === 0 ? "ok" : "fail", { reply: job.chat.reply });
+    });
+  })();
+
+  return job;
+}
+
+/* Is each CLI installed, and is it signed in? A missing login is the single most
+   likely reason nothing works, and it should be visible before the user tries. */
+async function cliStatus() {
+  const probe = (cmd, args) => new Promise((r) => {
+    const c = spawn(cmd, args, { shell: needsShell(cmd), stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    c.stdout.on("data", (b) => (out += b));
+    c.stderr.on("data", (b) => (out += b));
+    c.on("error", () => r({ installed: false, detail: "not found on PATH" }));
+    c.on("close", (code) => r({ installed: code === 0, detail: out.trim().split("\n")[0]?.slice(0, 80) || "" }));
+    setTimeout(() => { try { c.kill(); } catch {} r({ installed: false, detail: "timed out" }); }, 8000);
+  });
+  const [claude, codex] = await Promise.all([probe("claude", ["--version"]), probe("codex", ["--version"])]);
+  return { claude, codex };
+}
+
+/* ------------------------------------------------------------------ projects */
+async function listProjects() {
+  await mkdir(WORKSPACE, { recursive: true });
+  const out = [];
+  for (const e of await readdir(WORKSPACE, { withFileTypes: true })) {
+    if (!e.isDirectory() || e.name.startsWith(".")) continue;
+    const p = join(WORKSPACE, e.name);
+    const has = (f) => existsSync(join(p, f));
+    let prompts = 0, masters = 0, variants = 0;
+    try { prompts = (await readdir(join(p, "scratch", "prompts"))).filter((f) => f.endsWith(".txt")).length; } catch {}
+    try { masters = (await readdir(join(p, "images", "_masters"))).filter((f) => f.endsWith(".png")).length; } catch {}
+    try { variants = (await readdir(join(p, "images"))).filter((f) => /\.(png|jpe?g|webp)$/i.test(f)).length; } catch {}
+    let size = 0;
+    try { size = (await stat(join(p, "index.html"))).size; } catch {}
+    out.push({ name: e.name, path: p, hasIndex: has("index.html"), htmlBytes: size, prompts, masters, variants });
+  }
+  return out;
+}
+
+async function scaffold(name) {
+  const safe = name.replace(/[^a-zA-Z0-9-_]/g, "-").toLowerCase();
+  const p = join(WORKSPACE, safe);
+  if (existsSync(p)) throw new Error("a project with that name already exists");
+  for (const d of ["images/_masters", "logo", "scratch/prompts", "scripts"]) await mkdir(join(p, d), { recursive: true });
+  await writeFile(join(p, "project.config.json"), JSON.stringify({
+    html: "index.html", images: "images", masters: "images/_masters", logo: "logo",
+  }, null, 2), "utf8");
+  await writeFile(join(p, "package.json"), JSON.stringify({
+    name: safe, private: true, type: "module", scripts: { start: "node serve.mjs" },
+    engines: { node: ">=18" },
+  }, null, 2), "utf8");
+  await writeFile(join(p, "serve.mjs"), await readFile(join(HERE, "templates", "serve.mjs"), "utf8"), "utf8");
+  await writeFile(join(p, "index.html"),
+    `<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>${safe}</title>\n</head>\n<body>\n<!-- Claude writes the page here. The dashboard runs the pipeline around it. -->\n<main><h1>${safe}</h1><p>Not built yet.</p></main>\n</body></html>\n`, "utf8");
+  return p;
+}
+
+/* ------------------------------------------------------------------ http */
+const json = (res, code, body) => {
+  const s = JSON.stringify(body);
+  res.writeHead(code, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(s) });
+  res.end(s);
+};
+const readBody = (req) => new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { r(JSON.parse(b || "{}")); } catch { r({}); } }); });
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url, "http://localhost");
+  const p = decodeURIComponent(url.pathname);
+
+  try {
+    /* ---- live event stream ---- */
+    if (p === "/api/events") {
+      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+      res.write(": connected\n\n");
+      clients.add(res);
+      const ping = setInterval(() => { try { res.write(": ping\n\n"); } catch {} }, 25000);
+      req.on("close", () => { clearInterval(ping); clients.delete(res); });
+      return;
+    }
+
+    if (p === "/api/state") {
+      const s = await loadSettings();
+      return json(res, 200, {
+        workspace: WORKSPACE, skill: SKILL, port: PORT,
+        breezeKeySet: !!s.breezeKey, breezeKeyMasked: mask(s.breezeKey),
+        breezeUrl: s.breezeUrl || "https://panel.breezedeploy.dev",
+        claudeAuth: s.claudeAuth || "subscription",
+        anthropicKeySet: !!s.anthropicKey, anthropicKeyMasked: mask(s.anthropicKey),
+        imageAuth: s.imageAuth || "subscription",
+        openaiKeySet: !!s.openaiKey, openaiKeyMasked: mask(s.openaiKey),
+        model: s.model || "", permissionMode: s.permissionMode || "auto",
+        cli: await cliStatus(),
+        projects: await listProjects(),
+        jobs: [...jobs.values()].slice(-12).map(publicJob),
+      });
+    }
+
+    if (p === "/api/chat" && req.method === "POST") {
+      const b = await readBody(req);
+      const projectPath = join(WORKSPACE, b.project);
+      if (!existsSync(projectPath)) return json(res, 400, { error: "unknown project" });
+      if (!b.prompt?.trim()) return json(res, 400, { error: "empty prompt" });
+      const job = await jobChat(projectPath, b.prompt, { fresh: b.fresh, permissionMode: b.permissionMode });
+      return json(res, 200, { ok: true, job: publicJob(job) });
+    }
+
+    if (p === "/api/settings" && req.method === "POST") {
+      const b = await readBody(req);
+      const s = await loadSettings();
+      /* "" clears a key, undefined leaves it alone — so the UI never has to send
+         a secret back just to change an unrelated setting */
+      for (const [field, prop] of [["breezeKey", "breezeKey"], ["anthropicKey", "anthropicKey"], ["openaiKey", "openaiKey"]]) {
+        if (typeof b[field] === "string") {
+          if (b[field] === "") delete s[prop];
+          else s[prop] = b[field].trim();
+        }
+      }
+      for (const f of ["breezeUrl", "claudeAuth", "imageAuth", "model", "permissionMode"]) {
+        if (typeof b[f] === "string" && b[f]) s[f] = b[f].trim();
+      }
+      if (typeof b.workspace === "string" && b.workspace) { WORKSPACE = resolve(b.workspace); s.workspace = WORKSPACE; }
+      await saveSettings(s);
+      return json(res, 200, { ok: true, workspace: WORKSPACE,
+        breezeKeySet: !!s.breezeKey, breezeKeyMasked: mask(s.breezeKey),
+        anthropicKeySet: !!s.anthropicKey, anthropicKeyMasked: mask(s.anthropicKey),
+        openaiKeySet: !!s.openaiKey, openaiKeyMasked: mask(s.openaiKey) });
+    }
+
+    /* verify the key without deploying — proves it end-to-end, masked only */
+    if (p === "/api/settings/test" && req.method === "POST") {
+      const s = await loadSettings();
+      if (!s.breezeKey) return json(res, 200, { ok: false, detail: "no key set" });
+      try {
+        const r = await fetch((s.breezeUrl || "https://panel.breezedeploy.dev") + "/tenants",
+          { headers: { "x-api-key": s.breezeKey } });
+        const t = await r.text();
+        if (!r.ok) return json(res, 200, { ok: false, status: r.status, detail: t.slice(0, 160) });
+        let tenant = null; try { tenant = JSON.parse(t)[0]; } catch {}
+        return json(res, 200, { ok: true, status: r.status, tenant: tenant ? { id: tenant.id, plan: tenant.plan } : null });
+      } catch (e) { return json(res, 200, { ok: false, detail: e.message }); }
+    }
+
+    if (p === "/api/project" && req.method === "POST") {
+      const b = await readBody(req);
+      if (!b.name) return json(res, 400, { error: "name required" });
+      const path = await scaffold(b.name);
+      return json(res, 200, { ok: true, path });
+    }
+
+    if (p === "/api/prompts") {
+      const proj = url.searchParams.get("project");
+      const dir = join(WORKSPACE, proj, "scratch", "prompts");
+      let files = [];
+      try { files = await readdir(dir); } catch {}
+      const items = [];
+      for (const f of files.filter((x) => x.endsWith(".txt"))) {
+        const slug = f.replace(/\.txt$/, "");
+        items.push({ slug, text: await readFile(join(dir, f), "utf8"),
+          hasMaster: existsSync(join(WORKSPACE, proj, "images", "_masters", `${slug}.png`)) });
+      }
+      return json(res, 200, { items });
+    }
+
+    if (p === "/api/prompts" && req.method === "POST") {
+      const b = await readBody(req);
+      const dir = join(WORKSPACE, b.project, "scratch", "prompts");
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, `${b.slug.replace(/[^a-z0-9-]/gi, "-")}.txt`), b.text || "", "utf8");
+      return json(res, 200, { ok: true });
+    }
+
+    if (p === "/api/assets") {
+      const proj = url.searchParams.get("project");
+      const dir = join(WORKSPACE, proj, "images");
+      let files = [];
+      try { files = await readdir(dir); } catch {}
+      const byslug = {};
+      for (const f of files.filter((x) => /\.(png|jpe?g|webp)$/i.test(x))) {
+        const m = f.match(/^(.*)-(\d+)\.(png|jpe?g|webp)$/i);
+        const slug = m ? m[1] : f.replace(/\.\w+$/, "");
+        (byslug[slug] ||= []).push({ file: f, width: m ? +m[2] : null });
+      }
+      return json(res, 200, { slugs: Object.entries(byslug).map(([slug, v]) => ({ slug, variants: v.sort((a, b) => (a.width || 0) - (b.width || 0)) })) });
+    }
+
+    if (p === "/api/run" && req.method === "POST") {
+      const b = await readBody(req);
+      const projectPath = join(WORKSPACE, b.project);
+      if (!existsSync(projectPath)) return json(res, 400, { error: "unknown project" });
+      let job;
+      if (b.kind === "generate") job = await jobGenerate(projectPath, b.only);
+      else if (b.kind === "deploy") job = await jobDeploy(projectPath, {
+        project: b.deployProject || b.project, app: b.app || b.project, port: b.port, mode: b.mode });
+      else job = await jobPipeline(projectPath, b.kind);
+      return json(res, 200, { ok: true, job: publicJob(job) });
+    }
+
+    if (p.startsWith("/api/job/")) {
+      const job = jobs.get(p.split("/")[3]);
+      if (!job) return json(res, 404, { error: "no such job" });
+      return json(res, 200, { job: publicJob(job), steps: job.steps, log: job.log.slice(-500) });
+    }
+
+    /* ---- serve a project for live preview ---- */
+    if (p.startsWith("/preview/")) {
+      const [, , proj, ...rest] = p.split("/");
+      let rel = rest.join("/") || "index.html";
+      if (rel.endsWith("/")) rel += "index.html";
+      const target = resolve(join(WORKSPACE, proj, rel));
+      if (!target.startsWith(resolve(join(WORKSPACE, proj)))) { res.writeHead(403).end("Forbidden"); return; }
+      if (!existsSync(target)) { res.writeHead(404).end("Not found"); return; }
+      const body = await readFile(target);
+      res.writeHead(200, { "content-type": MIME[extname(target).toLowerCase()] || "application/octet-stream",
+        "cache-control": "no-store" });
+      return res.end(body);
+    }
+
+    /* ---- static UI ---- */
+    let rel = p === "/" ? "index.html" : p.replace(/^\//, "");
+    const file = resolve(join(HERE, "public", rel));
+    if (!file.startsWith(resolve(join(HERE, "public")))) { res.writeHead(403).end("Forbidden"); return; }
+    if (!existsSync(file)) { res.writeHead(404, { "content-type": "text/plain" }).end("Not found"); return; }
+    const body = await readFile(file);
+    res.writeHead(200, { "content-type": MIME[extname(file).toLowerCase()] || "application/octet-stream",
+      "cache-control": "no-store" });
+    res.end(body);
+  } catch (e) {
+    json(res, 500, { error: e.message });
+  }
+});
+
+const settings = await loadSettings();
+if (settings.workspace) WORKSPACE = settings.workspace;
+await mkdir(WORKSPACE, { recursive: true });
+
+/* 127.0.0.1, never 0.0.0.0 — this process can start jobs and holds a key */
+server.listen(PORT, "127.0.0.1", () => {
+  console.log(`\n  perfectionistDesign dashboard`);
+  console.log(`  http://localhost:${PORT}`);
+  console.log(`  workspace: ${WORKSPACE}`);
+  console.log(`  breeze key: ${settings.breezeKey ? mask(settings.breezeKey) : "not set — add one in Settings"}\n`);
+});
