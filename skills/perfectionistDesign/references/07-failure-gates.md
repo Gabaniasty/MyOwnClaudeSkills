@@ -1020,6 +1020,13 @@ sizes media, and let the flexible unit live on the container instead.
 
 **Pass condition:** `starvedOfHeight: 0` and `fractionalGeometry: 0`.
 
+> The first version of this counted ANY fractional width, left or top, and reported
+> 11/11 on a perfectly good fluid layout. A fluid column is fractional by definition;
+> demanding zero there sends someone chasing an unfixable number. It now counts only
+> what actually resamples: a fractional HEIGHT under object-fit, or a fractional
+> vertical offset. **A gate that cannot be satisfied gets ignored, and then so do the
+> gates next to it.**
+
 ---
 
 ## THE REPORTING RULE

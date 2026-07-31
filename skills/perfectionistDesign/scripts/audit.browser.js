@@ -309,12 +309,22 @@
       void fillW;
     });
 
-    /* fractional geometry on media = a genuinely blurred edge */
+    /* Fractional geometry that ACTUALLY resamples.
+     *
+     * The first version of this flagged any fractional width, left or top, and
+     * reported 11/11 on a perfectly good fluid layout — a fluid column is
+     * fractional by definition and that is not a defect. Demanding 0 there would
+     * have had someone chasing an unfixable number.
+     *
+     * What genuinely softens an image is a fractional HEIGHT under object-fit,
+     * or a fractional vertical OFFSET: both force a vertical resample. Width is
+     * already being scaled to fit, so a fraction there costs nothing extra. */
+    const f = (v) => Math.abs(v % 1) > 0.05 && Math.abs(v % 1) < 0.95;
     const fractional = [...document.querySelectorAll("img")].filter((i) => {
       if (!i.offsetParent) return false;
       const r = i.getBoundingClientRect();
-      const f = (v) => Math.abs(v % 1) > 0.05 && Math.abs(v % 1) < 0.95;
-      return f(r.height) || f(r.width) || f(r.left) || f(r.top);
+      const fit = getComputedStyle(i).objectFit;
+      return (f(r.height) && fit !== "fill") || f(r.top);
     }).length;
 
     out.media = {
