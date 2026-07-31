@@ -149,6 +149,10 @@ async function jobGenerate(projectPath, only) {
     slugs = (await readdir(promptsDir)).filter((f) => f.endsWith(".txt")).map((f) => f.replace(/\.txt$/, ""));
   } catch {}
   if (only?.length) slugs = slugs.filter((s) => only.includes(s));
+  /* _mockup is a DESIGN INPUT, not a shipped asset. It must never be swept up by a
+     plain "generate everything" run, or it lands in images/ and the reference
+     audit reports it as unused. */
+  else slugs = slugs.filter((s) => s !== "_mockup");
   if (!slugs.length) throw new Error("no prompt files in scratch/prompts");
 
   const job = newJob("generate", basename(projectPath), slugs.map((s) => ({ name: s, state: "pending" })));
@@ -339,6 +343,9 @@ const chatSessions = new Map();   // project -> last session id
 async function jobChat(projectPath, prompt, opts = {}) {
   const s = await loadSettings();
   const proj = basename(projectPath);
+  /* honour the project's own config rather than assuming index.html */
+  let cfgHtml = "index.html";
+  try { cfgHtml = JSON.parse((await readFile(join(projectPath, "project.config.json"), "utf8")).replace(/^﻿/, "")).html || cfgHtml; } catch {}
   const job = newJob("chat", proj, [{ name: "thinking", state: "running" }]);
   job.chat = { prompt, reply: "" };
 
@@ -404,7 +411,23 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "\"The gates\" always means that skill's mechanical checks, run through your run_gates",
     "tool. It never means npm test or a CI pipeline — do not go looking for one.",
     "",
+    "THE ORDER IS NOT NEGOTIABLE. Mockup, then analysis, then images, then build:",
+    "  1. Interview. Wait for answers.",
+    "  2. PHASE 1 — write scratch/prompts/_mockup.txt describing the WHOLE page, top to",
+    "     bottom, every section in order, then call mcp__pipeline__generate_mockup.",
+    "  3. PHASE 2 — READ images/_masters/_mockup.png with the Read tool. Extract the design",
+    "     system FROM THE IMAGE: palette with hex values, type scale, section order and",
+    "     composition. Say what you found. An image model makes a hundred composition",
+    "     decisions neither of you would think to specify — that is the point of it.",
+    "  4. PHASE 3 — write one prompt per section image, derived from the mockup, then",
+    "     call generate_images.",
+    "  5. PHASE 5 — build the page to match what you extracted.",
+    "  6. PHASE 6 — run_gates, and say what the gates cannot see.",
+    "NEVER write markup or section image prompts before you have looked at the mockup.",
+    "Skipping straight to code is how a build becomes a template.",
+    "",
     "You have pipeline tools, namespaced under mcp__pipeline__:",
+    "  mcp__pipeline__generate_mockup    PHASE 1, always first",
     "  mcp__pipeline__generate_images   every prompt in scratch/prompts, live progress",
     "  mcp__pipeline__process_assets    masters to variants, srcsets, reference audit",
     "  mcp__pipeline__run_gates         the skill's mechanical checks",
@@ -429,6 +452,11 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "",
     "Only skip the interview when the user has already answered it — a detailed brief, or",
     "a follow-up inside a build that is already underway.",
+    "",
+    "NEVER START A LONG-LIVED PROCESS. Do not run `node serve.mjs`, `npm start`, a dev",
+    "server or any watcher to preview your own work — they never exit, and the turn hangs",
+    "behind them. The dashboard already serves every project at /preview/<project>/index.html",
+    "and the user has it open. If you want to check the page renders, ask them to look.",
     "",
     "NEVER HARDCODE. No default section list, no default palette, no house style. Sections",
     "are derived from what THIS subject must prove; colour comes from the brand or from the",
@@ -512,6 +540,15 @@ async function jobChat(projectPath, prompt, opts = {}) {
         }
         if (m.type === "result") {
           job.chat.reply = m.result || job.chat.reply;
+          /* END ON `result`, NOT ON `close`.
+             `close` fires when the process TREE releases stdout. If the agent
+             started a long-lived process — `node serve.mjs` to preview its own
+             work — that grandchild holds the pipe open forever and the turn shows
+             "running" long after the reply arrived. Observed: a build that had
+             finished, passed its gates twice and written 61 KB of HTML still sat
+             at "running 1437s". `result` is the model's own end-of-turn signal
+             and it is the correct one. */
+          finish(true);
           /* The CLI reports total_cost_usd whatever the auth mode. On a
              subscription it is a NOTIONAL equivalent, not a charge, and printing
              it as "cost" next to a plan the user already pays for reads as a bill
@@ -536,12 +573,35 @@ async function jobChat(projectPath, prompt, opts = {}) {
       jobStep(job, "thinking", "fail");
       jobEnd(job, "fail");
     });
-    child.on("close", (code) => {
-      if (job.status !== "running") return;
-      jobStep(job, "thinking", code === 0 ? "ok" : "fail");
-      emit({ type: "chat:done", id: job.id, reply: job.chat.reply, ok: code === 0 });
-      jobEnd(job, code === 0 ? "ok" : "fail", { reply: job.chat.reply });
-    });
+    /* idempotent: whichever signal lands first wins, the other is a no-op */
+    let finished = false;
+    async function finish(ok) {
+      if (finished || job.status !== "running") return;
+      finished = true;
+      jobStep(job, "thinking", ok ? "ok" : "fail");
+
+      /* Did this turn actually leave a site behind? Say so, and hand over a link.
+         The user should never have to ask "is it done, and where is it?" — the
+         answer is on disk and the dashboard already serves it. A scaffolded
+         placeholder is ~330 bytes, so anything substantially larger is a build. */
+      let site = null;
+      try {
+        const idx = join(projectPath, cfgHtml);
+        const st = await stat(idx);
+        if (st.size > 2000) {
+          let imgs = 0;
+          try { imgs = (await readdir(join(projectPath, "images"))).filter((f) => /\.(png|jpe?g|webp)$/i.test(f)).length; } catch {}
+          site = { url: `/preview/${proj}/${cfgHtml}`, bytes: st.size, images: imgs,
+                   changed: st.mtimeMs >= job.startedAt };
+        }
+      } catch {}
+
+      emit({ type: "chat:done", id: job.id, reply: job.chat.reply, ok, site });
+      jobEnd(job, ok ? "ok" : "fail", { reply: job.chat.reply, site });
+      /* the model is done; anything it left running is not our turn to wait on */
+      setTimeout(() => { try { child.kill(); } catch {} }, 1500);
+    }
+    child.on("close", (code) => finish(code === 0));
   })();
 
   return job;
@@ -751,7 +811,8 @@ const server = createServer(async (req, res) => {
       const projectPath = join(WORKSPACE, b.project);
       if (!existsSync(projectPath)) return json(res, 400, { error: "unknown project" });
       let job;
-      if (b.kind === "generate") job = await jobGenerate(projectPath, b.only);
+      if (b.kind === "mockup") job = await jobGenerate(projectPath, ["_mockup"]);
+      else if (b.kind === "generate") job = await jobGenerate(projectPath, b.only);
       else if (b.kind === "deploy") job = await jobDeploy(projectPath, {
         project: b.deployProject || b.project, app: b.app || b.project, port: b.port, mode: b.mode });
       else job = await jobPipeline(projectPath, b.kind);

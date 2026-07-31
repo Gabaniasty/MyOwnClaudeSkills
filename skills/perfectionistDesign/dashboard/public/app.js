@@ -202,6 +202,20 @@ function connect() {
     if (m.type === "chat:done") {
       body?._think?.remove();
       body?._prose?.querySelector(".caret")?.remove();
+      /* Say when the site is done and hand over the link. The user should never
+         have to ask "is it finished, and where is it?" — the server already knows
+         both, so answering is not the model's job to remember. */
+      if (m.site && body) {
+        const card = el("div", "live");
+        card.style.animation = "rise .3s var(--ease) both";
+        card.append(el("span", null, m.site.changed ? "Site updated" : "Site"));
+        const a = el("a", null, "open it →");
+        a.href = m.site.url; a.target = "_blank";
+        card.append(a, el("span", "cnt",
+          `${Math.round(m.site.bytes / 1024)} KB · ${m.site.images} images`));
+        body.appendChild(card);
+        (body._cards ||= []).push(card);
+      }
       setBusy(false);
       bubble = null;
       refresh();

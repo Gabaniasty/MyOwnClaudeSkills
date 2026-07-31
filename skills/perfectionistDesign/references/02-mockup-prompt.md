@@ -69,6 +69,107 @@ the single highest-leverage step in the pipeline.
 
 ---
 
+## §0.7 ANTI-DEFAULT DISCIPLINE MUST NOT CANNIBALISE FUNCTION
+
+**A shop mockup came back with no product photographs.** Five coffees rendered as a
+five-row text index — name, notes, price — and nothing else. Someone landing on it could
+not see what they would be buying.
+
+The image model was not at fault. The prompt had asked for exactly that:
+
+> *"a five-row editorial index, one row per coffee, styled like a printed catalogue…
+> rows separated by hairline rules only"* — and, earlier, *"must look nothing like a
+> '3 equal cards' grid."*
+
+The anti-default rules had been applied so hard that they removed the thing the page
+exists to do. "Avoid three equal cards" is good advice about **form**. It is not
+permission to delete the product.
+
+**The check, before you send any mockup prompt:**
+
+> Name the ONE job this page must do. Then find the section that does it, and confirm
+> the prompt makes that section the largest and most concrete thing on the page.
+
+| Page | The job | Therefore the mockup MUST show |
+|---|---|---|
+| shop | sell a specific item | every product, photographed, with a price and a buy control |
+| portfolio | prove the work is good | the work, large, not a description of the work |
+| booking | get a date chosen | the availability UI, not a paragraph about availability |
+| SaaS landing | show what the product does | the product's actual interface |
+| gym | show the room and the coaching | the room, the equipment, the coaches |
+
+Write it into the prompt as a non-negotiable, in its own paragraph near the top —
+*"THE MOST IMPORTANT REQUIREMENT: the products must be SHOWN, not listed. A row of text
+with prices is not acceptable."* — and give the exact per-item content: photograph,
+name, price, control. Vague adjectives lose to concrete instructions every time.
+
+**Anti-defaults belong in the prompt too, but underneath the job, never above it.**
+Order the prompt: what the page must prove → what each section contains → what to avoid.
+Put the avoidance list first and it becomes the brief.
+
+---
+
+## §0.8 GENERATE MORE THAN ONE MOCKUP WHEN THE JOB IS HARD
+
+One mockup is a guess with a 1-in-1 hit rate. Generating three costs about six minutes
+and turns Phase 1 into a real choice.
+
+**Generate a single mockup when:** the brief is narrow, the brand already exists, or the
+user supplied a reference of the new design.
+
+**Generate THREE when any of these is true:**
+- the page has to sell something, book something or convert — the layout carries money
+- the brief names a feeling but no reference ("premium", "calm", "bold")
+- more than about eight sections, or an unusual section you have not built before
+- a redesign that must MEASURABLY diverge (Gate 15)
+- you are unsure. Being unsure is itself the signal.
+
+Vary **one axis only** across the three, so the comparison means something:
+
+| Axis | A | B | C |
+|---|---|---|---|
+| composition | editorial split | full-bleed image-led | typographic, image-light |
+| density | airy | medium | dense catalogue |
+| type | serif display | grotesque display | mono-accented |
+
+Keep the section list, the content and the palette identical across all three. Then put
+them side by side and pick with a written reason: *"B, because the product grid reads as
+a shop at a glance and A buries it below the fold."* Steal the best single idea from the
+losers — a nav treatment, a footer, one section's composition — and say what you took.
+
+**Never average them.** Blending three mockups produces the mush that having a mockup was
+supposed to prevent. Pick one, graft deliberately.
+
+---
+
+## §0.9 ANALYSING A MOCKUP: the inventory is the whole job
+
+Reading a mockup is not "look at it and start coding". Produce this table BEFORE any
+markup, and say it out loud:
+
+```
+PALETTE      every colour with a hex, and what it is FOR
+             (ground, ink, muted ink, accent, rules, and each surface tone)
+TYPE         which family is display vs body vs mono; the size relationships
+SECTIONS     in order, top to bottom, with a one-line purpose each
+ASSETS       every visual element, with a DECISION beside it:
+               generate | library | CSS
+             photographs, MAPS, diagrams, charts, illustrations, textures,
+             background washes, icons, logos, badges, dividers
+EDGES        for every image: does it bleed, and to which edge?
+COMPOSITION  what is asymmetric, what is aligned to what, where the eye goes
+```
+
+**The ASSETS row is the one that gets skipped and it is the one that costs most.** A
+build once read a mockup's photographs correctly and missed its world map, so the map got
+hand-drawn as SVG path data (Gate 30). If the mockup shows it, it is in the table. If you
+cannot name which of generate/library/CSS it is, the inventory is not finished.
+
+**Then re-read the mockup while building, not only before.** The analysis is a summary;
+the image has more in it than any summary you wrote. Open it again at Phase 5.
+
+---
+
 ## PROMPT 1 — Mockup generation
 
 Fill the `<>` placeholders from the interview. Tell the user to send this to ChatGPT with

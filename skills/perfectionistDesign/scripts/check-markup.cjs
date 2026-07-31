@@ -85,6 +85,26 @@ if (offenders.length) {
   console.log("    Gate it like the reveal contract does:  .rv{opacity:1}  .js .rv{opacity:0}");
 }
 
+/* 4. GATE 30 — hand-drawn illustration masquerading as markup.
+      A <path> carrying a long coordinate string is traced artwork: a map, a
+      diagram, an illustration. It belongs in images/ as a generated asset.
+      A build once hand-wrote a WORLD MAP as ten inline SVG elements, because the
+      Phase 2 inventory recorded the mockup's photographs but not its map. It
+      rendered as a wobbly outline nothing like the mockup, and nobody can edit
+      an 80-character path by hand afterwards.
+      Icons, logos, arrows and rules are short. Artwork is not. */
+const longPaths = doc.match(/<path[^>]*\sd="[^"]{80,}"/g) || [];
+if (longPaths.length) {
+  problems += longPaths.length;
+  console.log(`\n*** ${longPaths.length} hand-drawn SVG path(s) with 80+ coordinate chars:`);
+  longPaths.slice(0, 5).forEach((p) => {
+    const d = (p.match(/d="([^"]*)"/) || [])[1] || "";
+    console.log(`    ${d.length} chars: ${d.slice(0, 60)}...`);
+  });
+  console.log("    This is traced artwork, not an icon. Generate it as an image, take it");
+  console.log("    from a real library, or build it in CSS. Never draw it by hand.");
+}
+
 console.log(`\ntotal faults: ${problems}`);
 if (problems) process.exit(1);
-console.log("no duplicate attributes, no dead custom properties, no ungated reveals");
+console.log("no duplicate attributes, no dead custom properties, no ungated reveals, no traced SVG");

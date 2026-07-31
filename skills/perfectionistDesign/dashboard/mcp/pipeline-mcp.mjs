@@ -16,6 +16,13 @@ const BASE = process.env.PD_DASHBOARD_URL || "http://127.0.0.1:4180";
 const PROJECT = process.env.PD_PROJECT || "";
 
 const TOOLS = [
+  /* PHASE 1. First tool in the list because it is the first thing that happens.
+     The dashboard shipped without it, so every build went brief -> code with no
+     mockup at all, and the skill's own "Phase 1 is never skippable" could not be
+     obeyed. A missing tool is a silently skipped phase. */
+  { name: "generate_mockup",
+    description: "PHASE 1, ALWAYS FIRST on any new page or redesign. Write the full-page mockup prompt to scratch/prompts/_mockup.txt, then call this. It renders one tall image of the WHOLE page — every section, in order — using the user's ChatGPT login. When it finishes, READ images/_masters/_mockup.png with the Read tool and extract the design system from it: palette, type scale, section order, composition. Do not write markup or image prompts before you have looked at it.",
+    inputSchema: { type: "object", properties: {} }, kind: "mockup" },
   { name: "generate_images",
     description: "Generate every image whose prompt file exists in scratch/prompts, using the user's ChatGPT login via Codex. Shows live per-asset progress in the chat. Pass `only` to regenerate specific slugs. Write the prompt .txt files FIRST.",
     inputSchema: { type: "object", properties: {

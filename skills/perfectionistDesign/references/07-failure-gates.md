@@ -1029,6 +1029,110 @@ sizes media, and let the flexible unit live on the container instead.
 
 ---
 
+## GATE 30 — NEVER hand-draw an illustration in SVG. It is a generated asset.
+
+**Phase 2 inventory, and Phase 5 the moment you are tempted.**
+
+The mockup showed a world map with dots on the origin countries. The analysis pass did
+not record it as an image, so the build **hand-wrote a world map in SVG path data** — ten
+elements, four paths of 80+ coordinates each. It rendered as a wobbly traced outline
+nothing like the mockup, and it is unmaintainable: nobody can edit that path by hand, and
+no future change can improve it.
+
+The existing rule *"never hand-roll an icon, install a set"* was read as being about
+icons only. It is not. **Any drawn artwork is an asset.**
+
+| Hand-authored SVG is fine | It is NOT fine for |
+|---|---|
+| an icon from a real icon set | maps, world or regional |
+| a logo extracted verbatim from the brand | diagrams, charts, flow illustrations |
+| a rule, a divider, a chevron, an arrow | anything with a recognisable real-world shape |
+| geometry with a handful of coordinates | textures, patterns, decorative artwork |
+
+**The mechanical test — run it on every build:**
+
+```bash
+# any inline <path> with a long coordinate string is traced artwork, not an icon
+grep -o '<path[^>]*d="[^"]\{80,\}"' index.html | wc -l     # must be 0
+```
+
+A `d` attribute longer than about 80 characters is not something a person wrote
+deliberately; it is something that should have been generated as an image, or taken from
+a real library.
+
+### Where this actually goes wrong: the Phase 2 inventory
+
+The root cause is upstream. `09-phase-entry-checks.md` already says *"inventory every
+ELEMENT, not just sections"* — this is the case it was written for and it still got
+missed. When reading a mockup, every one of these becomes a row in the asset list with a
+decision beside it:
+
+> photographs · **maps** · **diagrams and charts** · **illustrations** · textures and
+> patterns · background washes · icons · logos · badges · dividers
+
+For each: **generate it, take it from a library, or build it in CSS.** "Draw it in SVG
+by hand" is not one of the three options. If the mockup shows it and you cannot name
+which of the three it is, you have not finished the inventory.
+
+**Pass condition:** long-path count `0`, and every drawn element in the mockup appears in
+the asset list.
+
+---
+
+## GATE 31 — `100vw` includes the scrollbar. Full-bleed built on it always overflows.
+
+**Phase 6, and Phase 5 whenever you write a bleed.**
+
+The standard break-out idiom:
+
+```css
+--page: min(1280px, calc(100vw - 48px));
+.bleed { margin-right: calc(-1 * (100vw - var(--page)) / 2); }
+```
+
+`100vw` is the viewport **including** the classic scrollbar. The layout viewport
+(`documentElement.clientWidth`) excludes it. So the bleed overshoots the right edge by
+exactly the scrollbar width — measured at **8px** on one build — and creates the
+horizontal scroll the author was trying to design.
+
+`overflow-x: hidden` on `body` does **not** fix it: the document still reports the
+overflow, and on some engines the scrollbar still appears.
+
+**The fix, on the root:**
+
+```css
+html { overflow-x: clip; }     /* NOT hidden */
+```
+
+`clip` contains the overshoot without making `<html>` a scroll container. `hidden` makes
+it one, and that silently breaks every `position: sticky` on the page — a much worse bug
+than the one being fixed.
+
+**Pass condition:**
+
+```js
+document.documentElement.scrollWidth - document.documentElement.clientWidth   // 0
+```
+
+Check it at every breakpoint. An off-canvas drawer or a fixed panel parked at
+`translateX(100%)` will trip this too, and `clip` covers those as well.
+
+### While you are there: the blank band under the header
+
+The same build had `padding-top: 88px` on a hero sitting under a 77px header — 165px of
+empty page before anything appeared, where the mockup had the hero starting immediately
+below the nav rule. Measure it rather than eyeballing:
+
+```js
+heroTop + heroPaddingTop - headerHeight   // the blank band, in px
+```
+
+If the mockup's first content sits close under the nav and yours does not, the padding is
+wrong. This is Gate 5's rule in a new place: **the mockup is the spec for spacing, not
+just for colour.**
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the

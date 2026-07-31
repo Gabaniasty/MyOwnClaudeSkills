@@ -33,11 +33,23 @@ if (!spec) {
   /* infer: every master that the document references, at the widths it references */
   const doc = html();
   spec = {};
+  /* THE ORDER IS IMAGES BEFORE BUILD, so the document usually does not exist yet.
+     Deriving widths from a page that has not been written finds nothing, and this
+     script then reported "ok" having produced zero variants — a pass that meant
+     the opposite. When the document references none of the masters, process them
+     ALL at sensible defaults so the build has something real to reference. */
+  const docRefsAny = fs.existsSync(SRC) && fs.readdirSync(SRC)
+    .some((f) => /\.png$/i.test(f) && doc.includes(`${cfg.images}/${f.replace(/\.png$/i, "")}-`));
+  if (!docRefsAny) console.log("document references no masters yet - processing every master at default widths\n");
+
   for (const f of fs.existsSync(SRC) ? fs.readdirSync(SRC) : []) {
     if (!/\.png$/i.test(f)) continue;
     const slug = f.replace(/\.png$/i, "");
     if (/-source$/.test(slug)) continue;
-    const widths = [...new Set([...doc.matchAll(new RegExp(`${cfg.images}\\/${slug}-(\\d+)\\.`, "g"))].map((m) => +m[1]))];
+    /* _mockup is a design input, never a shipped asset */
+    if (slug === "_mockup" || /^_/.test(slug)) continue;
+    let widths = [...new Set([...doc.matchAll(new RegExp(`${cfg.images}\\/${slug}-(\\d+)\\.`, "g"))].map((m) => +m[1]))];
+    if (!widths.length && !docRefsAny) widths = [520, 900, 1400];
     if (!widths.length) continue;
     const kind = /^ic-/.test(slug) ? "icon"
       : /^(bg-|atmos)/.test(slug) ? "atmosphere"
@@ -63,6 +75,25 @@ const key = (data, info) => {
   }
   return keyed;
 };
+
+/* --only names a slug EXPLICITLY, so it must work even when the inferred spec has
+   never heard of it. Asking for a brand-new master by name and getting "processed 0
+   slugs" is the same chicken-and-egg as above wearing a different hat: the spec
+   comes from the document, and a new asset is not in the document yet. */
+if (ONLY) {
+  for (const slug of ONLY) {
+    if (spec[slug]) continue;
+    if (!fs.existsSync(path.join(SRC, slug + ".png"))) {
+      console.log(`no master for --only slug "${slug}"`);
+      continue;
+    }
+    const kind = /^ic-/.test(slug) ? "icon"
+      : /^(bg-|atmos)/.test(slug) ? "atmosphere"
+      : /^(deco-|dev-|cut-)/.test(slug) ? "cutout" : "photo";
+    spec[slug] = { kind, widths: [520, 900, 1400] };
+    console.log(`--only "${slug}" not in the inferred spec; adding it at default widths`);
+  }
+}
 
 (async () => {
   const results = [];
