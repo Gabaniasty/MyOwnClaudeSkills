@@ -104,6 +104,170 @@ Constraints:
 
 ---
 
+## THE BEST REDESIGN MOCKUP ROUTE: the user's own screenshot
+
+**Try this before generating anything.** It beat three rounds of prompt-engineered
+generation on a real project, and it is one message of the user's time:
+
+1. The user captures a **full-page screenshot of the live site** (any full-page capture
+   browser extension).
+2. They attach it to ChatGPT and say, roughly:
+   *"Recreate a redesign of this exact website in \<colour / direction>."*
+3. They hand you the resulting image.
+
+**Why it wins over a text-prompted generation.** The model is looking at the real page, so
+every section, every nav item and every content block is already accounted for. Gate 16
+(completeness) comes out close to satisfied for free, because the model is redesigning
+something concrete rather than inventing from a description. Generated-from-text mockups
+kept dropping sections; this route did not.
+
+### What it still gets wrong, every time
+Treat the returned image as a **composition**, never as a source of fact. Verify against the
+DOM inventory and expect to correct:
+
+- **Invented product names.** A real studio's eight tools came back as four real names and
+  four fabrications. Use the real ones.
+- **An invented logo.** The mark is usually redrawn from scratch. Use the client's real
+  asset, recoloured if the direction changed.
+- **Invented nav items** pointing at sections that do not exist (a "Pricing" link with no
+  pricing section, on a business with no published prices).
+- **Invented prices, testimonials and metrics.** Never ship these for a real business.
+- **Changed contact details.** A `.dev` domain replacing the real `.net.pl` one.
+- **Dead affordances**, such as "View case" links with no case studies behind them.
+
+Ask the user which wins on each conflict. Do not silently pick. `10-reference-and-components.md` §2.
+
+### What it gets right and you should follow closely
+Layout, spacing rhythm, component choice, type hierarchy, section order, and which blocks
+deserve a UI preview versus plain type. That is the whole value. Take it.
+
+---
+
+## RECORD THE COMPOSITION, NOT ONLY THE CONTENT
+
+**This is where recreating a supplied mockup goes wrong, and it is a different failure from
+anything in Gate 16.** Gate 16 counts things: sections, nav items, cards, form fields. A
+build can pass it completely and still look nothing like the mockup, because counting says
+*what* is on the page and never says *how big it is or where its edges are*.
+
+Real example: a hero photograph that runs the full height of the section and bleeds off the
+right edge of the viewport was rebuilt as a rounded card inside a grid column. Every count
+matched. Every asset resolved. It looked like a thumbnail. The user's reaction was *"the
+hero is not identical, you put the hero image as a small in a box rounded, it's meant to
+cover entire hero section."*
+
+### For every element in the mockup, record its EDGE BEHAVIOUR
+
+Content inventory answers "what". This answers "how big, and where does it stop":
+
+```
+element            containment          size relative to           corners
+-----------------------------------------------------------------------------
+hero photo         FULL-BLEED right     100% of section height     square (runs off)
+services image     CONTAINED            16:9 inside the card       rounded, clipped
+cta phone          BLEEDS top+bottom    overflows the panel        transparent cutout
+aura background    FULL-BLEED both      larger than the section    none, fades out
+```
+
+Four values cover almost everything:
+
+- **CONTAINED** - sits inside the content column, usually rounded and clipped.
+- **BLEEDS \<edge>** - touches one or more viewport edges, square on those edges.
+- **FULL-BLEED** - spans the entire section, edge to edge.
+- **OVERFLOWS** - deliberately breaks out past its own container.
+
+**A rounded corner is the tell.** If an element in the mockup has square corners on one
+side, it is bleeding to that edge. If it is rounded on all four, it is contained. Read the
+corners before writing any CSS.
+
+### Then check the three things that are always wrong afterwards
+
+1. **Does it actually reach the edge?** Measure `getBoundingClientRect().right` against
+   `document.documentElement.clientWidth`. A full-bleed element nested inside a
+   `position:relative` content wrapper resolves `right:0` to the *wrapper's* edge and stops
+   short, which looks almost right and is wrong. Move it out to a direct child of the
+   section.
+2. **Does it run under the header?** A dark full-bleed panel starting at `top:0` puts the
+   nav links on top of a photograph. Measure the nav text against the rendered pixels
+   (Gate 5), or start the panel below the header as the mockup usually does.
+3. **What does it collide with?** A bleeding panel will overlap whatever is beside it in the
+   content column. Measure, and either narrow the panel or constrain the neighbour.
+
+---
+
+## PROMPT 1-R — Mockup generation FOR A REDESIGN
+
+**Use this instead of PROMPT 1 whenever an existing site is being replaced.** Phase 1 is
+never skipped on a redesign, and the existing site is never the reference. See SKILL.md
+§4.7 and Gate 15.
+
+The critical difference: the old design goes in as a **negative**. Passing it as a positive
+reference (`-i old-site.png` with "modernise this") produces a recoloured clone every time,
+because that is literally what was asked for.
+
+Derive the *presentation* from `§0` against the subject. But **inventory the existing site
+from the DOM first** (Gate 16) and carry every section, nav item, form field and portfolio
+item into the prompt as an explicit numbered list with counts.
+
+Two failure modes, and you must clear both:
+- **Too similar** (Gate 15): you kept the old composition. A reskin.
+- **Too little** (Gate 16): you dropped sections chasing novelty. A deletion.
+
+The old site's section *order* is a decision someone else made and is fair game to change.
+The old site's section *inventory* is the client's content and is not. An image model told
+"a work section" invents three cards; told "eight named projects, listed here" it renders
+eight. Always give it the counts.
+
+```text
+I need a really well-done mockup image of a <CATEGORY> landing page, as a full-page
+screenshot-style capture covering every section from header to footer, as one tall image.
+
+This is a REDESIGN. The existing site is attached ONLY so you know what to avoid. Do not
+modernise it, do not refine it, do not use it as a starting point. I want a fundamentally
+different page that solves the same job better.
+
+Carry over ONLY these, exactly:
+- the logo and company name
+- the brand colour <HEX>
+- the copy and the claims it makes
+
+Change everything else, deliberately:
+- a different section order, derived from <WHAT THE SUBJECT MUST PROVE>
+- a different hero composition from the attached one
+- a different type pairing and a much stronger type hierarchy
+- a different grid and a different page rhythm
+- a different imagery strategy
+
+The page must prove: <THE 3-4 THINGS FROM §0 Q2>.
+The single success action is: <THE ONE CTA>.
+
+Constraints:
+- Must NOT resemble the attached site in silhouette, section order or hero layout.
+- Must not look like a generic template, a generic SaaS page, or an AI-generated concept.
+- <ANY VERBATIM NEGATIVES FROM THE INTERVIEW>
+
+Research <CATEGORY> sites that convert well and design something in that class.
+```
+
+> **Prefer describing the old design in words over attaching it.** Image models imitate what
+> you attach far more reliably than they avoid it, so `-i old-site.png` plus "do not
+> resemble this" often returns a tidier version of the attachment. Naming the specific
+> things to avoid in prose ("do not put the headline left with a visual right, do not open
+> on a dark hero") is more effective than any negative reference image. Attach the old
+> design only when the user needs to see it accounted for.
+
+### Checking the mockup before you build from it
+Put the mockup and a screenshot of the old site side by side at 25% zoom, where only
+silhouette and rhythm survive. If they read as the same page, regenerate with
+*"this is still too close to the original, make it structurally different"*. Do not proceed
+and hope the build diverges on its own. It will not.
+
+Then fill in the Gate 15 table **from the mockup**, before writing any markup. If the mockup
+cannot score 5 of 8 with axes 1 and 2 changed, the mockup is the problem and no amount of
+careful building will fix it.
+
+---
+
 ## PROMPT 2 — Spec extraction
 
 Once the mockup exists, the user sends **this** in the same ChatGPT thread, with the

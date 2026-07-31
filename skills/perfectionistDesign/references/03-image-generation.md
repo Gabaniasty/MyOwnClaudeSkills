@@ -132,6 +132,70 @@ It produces garbled glyphs. All copy is real HTML. Logos are inlined SVG.
 
 ---
 
+## 3.25 Ask for the ASPECT the box needs, and for the brightness the text needs
+
+Two prompt-time decisions that cannot be repaired later. Both are Gate 19.
+
+**Aspect.** A full-bleed band renders at roughly `widestViewport / bandHeight`. Ask for a
+plate cut to *that*, and at least the widest viewport in real pixels:
+
+```
+required ratio ≈ 2560 / 1080 ≈ 2.37   ->  "an ultra-wide cinematic plate, 21:9 letterbox
+                                            framing", generated at 2560x1080
+```
+
+A 1.43:1 plate dropped into a 2.66:1 band forced `object-fit: cover` to scale it **1.77×**
+at 1920 and **1.70×** at 2560 — past its own pixels, showing barely a third of the frame.
+No CSS fixes that. The user described it as *"the bigger the screen the more zoomed in it
+gets"*, which is precisely what it is.
+
+**Brightness where the type goes.** If copy will sit on the plate, name the half that must
+stay bright, empty and evenly lit, and name what must NOT be there:
+
+> The desk objects sit in the RIGHT HALF. The LEFT HALF is almost empty — plain sunlit wall
+> and bare desk surface, evenly and brightly lit, **with no dark window frame, no dark
+> furniture edge and no strong shadow anywhere in it**, because headline typography is set
+> over that half.
+
+One dark window mullion in the left half of an earlier plate was, by itself, the reason that
+hero needed an **86% white wash**. Re-cut with this paragraph in the prompt, the same hero
+needed **none** — the photograph carries the text on its own at 8.28:1. A sentence in the
+prompt is worth more than any amount of scrim tuning afterwards.
+
+---
+
+## 3.27 Regenerating: the change is never just the image
+
+A palette change, a re-shoot, a "make it warmer" — all of these invalidate **every derived
+file**, not just the master. The full sequence, and skipping any step has produced a shipped
+defect:
+
+1. **Retire** the old masters somewhere recoverable. Do not delete until every replacement
+   is confirmed — a failed generation must still have a fallback.
+2. **Delete every derived variant** of each regenerated slug. A new master trims to a
+   different size, so old and new widths coexist and the srcset serves both. One project
+   shipped `dev-hardware` with widths `520, 900, 963, 995` where 963 was orange and 995 was
+   the superseded purple.
+3. **Reprocess** from the new masters only.
+4. **Reconcile srcsets from disk**, for every slug, exiting non-zero on any slug with no
+   variants at all.
+5. **Audit both directions**: `MISSING: 0` and `unused: 0`.
+6. **Re-run the whole gate set.** A palette change moves every contrast measurement.
+
+And remember the browser: **the filename did not change, so the tab did not re-fetch.** The
+user will keep seeing the old asset and will report it as a bug. Verify with
+`fetch(url, {cache:'reload'})` and decode the bytes before you believe either their
+screenshot or your own eyes.
+
+### Judge a keyed cutout by measuring alpha, never by looking at it
+
+Opening a chroma-keyed PNG in a viewer showed green fringes and looked like a failed key.
+Measured: **0% opaque green, alpha correct**. The viewer was painting the leftover RGB of
+fully transparent pixels. Report `transparent %` and `opaque-key-colour %`; those are the
+evidence. Zeroing the RGB under `alpha == 0` also stops the next person having this scare.
+
+---
+
 ## 3.3 Hero composition rule
 
 Specify the **safe area** in the prompt, not afterwards:

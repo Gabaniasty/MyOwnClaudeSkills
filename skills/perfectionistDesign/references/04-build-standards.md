@@ -257,6 +257,106 @@ the photo becomes a **band at the top** with the copy on solid ground beneath it
 
 ---
 
+## 5.5 SIZE THE BOX, NOT THE IMAGE
+
+**The single most common way a repeated visual set breaks.** When several images of
+*different aspect ratios* share a layout, sizing them by width gives them wildly different
+heights, and the tallest ones cover their neighbours.
+
+Real numbers from a project: eight product renders shared one card design. After trimming,
+the laptop was `1129x931` (ratio 1.21) and the phone was `428x1450` (ratio 0.29). A single
+rule of `width: 42%` therefore rendered the phone **427px tall inside a 168px panel**. It
+covered its own card's title and the card beside it. The CSS was identical for every card;
+the *content* was not.
+
+```css
+/* WRONG - height is whatever the aspect ratio decides */
+.device { width: 42%; }
+
+/* RIGHT - a fixed envelope; the image fits inside it whatever its shape */
+.device      { position: absolute; left: 50%; bottom: 14%; width: 86%; height: 112%; }
+.device img  { width: 100%; height: 100%; object-fit: contain; object-position: bottom center; }
+```
+
+With `contain`, a wide laptop and a tall phone occupy the **same visual envelope**. Nothing
+is cropped, nothing overflows, and the set reads as one family.
+
+### Then verify the set, not the item
+```js
+// every device should occupy a similar fraction of its own panel
+cards.map(c => c.querySelector('img').getBoundingClientRect().height
+             / c.querySelector('.stage').getBoundingClientRect().height)
+// spread beyond about 0.15 means they will not read as a set
+```
+Measured after the fix: **1.23 to 1.33** across eight cards. Before it: unbounded.
+
+### Two more things that only show up once it renders
+- **Rotation expands the bounding box.** A `rotate(-6deg)` element's
+  `getBoundingClientRect()` is larger than its layout box, so an inset that looks
+  sufficient in CSS can still let a corner land on the text below. Measure
+  `bodyTop - imageBottom` and require it positive.
+- **The breakout direction must be pinned.** `bottom: -6%` makes an element hang *below*
+  its container and onto whatever follows. To break out of the **top** only, keep the box
+  inside the container (`bottom: 14%`) and let its height exceed 100%.
+
+### `contain` bounds the image. It does NOT equalise apparent size.
+
+The envelope stops overflow — that is all it promises. Inside one shared box, **width**
+binds on a landscape asset and **height** binds on a portrait one, so a 1.58-ratio laptop
+rendered **190px tall next to a 277px phone**. A laptop that looks smaller than a phone is
+backwards, and every asset passed its own check. Measure what renders:
+
+```js
+const r = img.naturalWidth / img.naturalHeight, br = box.width / box.height;
+const renderedH = r > br ? box.width / r : box.height;   // the number the eye reads
+```
+
+Fix with a per-asset **box multiplier on the landscape members only** — widening a portrait
+asset changes nothing, because its height already binds:
+
+```css
+.device      { --dev-w: 86%; --dev-k: 1; width: calc(var(--dev-w) * var(--dev-k)); }
+.card:nth-child(4) .device { --dev-k: 1.08; }   /* the wide ones, tuned per asset */
+```
+
+Keep the multiplier as a *variable* the breakpoint rules restate, or a `@media` override of
+`width` will silently discard it. And re-check side spill after: at `1.08` two devices cleared
+their own card's edge by 7px and 4px purely from the lean.
+
+### Budget the breakout against the gap it breaks into
+
+A breakout is only "floating" if it lands in empty space. Compute it:
+
+```
+rise ≈ (heightPct − 100% + bottomInset) × stageHeight  +  0.05 × elementWidth   // lean
+```
+
+~78px on a two-column card. Against a 16px row gap that is **8 collisions** with the card
+above — text covered, in a layout already reported as fixed once. Size the row gap to the
+rise, not to the column gap:
+
+```css
+.grid { column-gap: 1rem; row-gap: clamp(3.5rem, 2.5rem + 3vw, 5.5rem); }
+```
+
+Then assert 0 collisions programmatically at every breakpoint (Gate 21), with any idle
+animation pinned to its worst frame.
+
+### Grid spans: never let a card span two ROWS, and feature the FIRST card
+
+Two layout defects from one bento:
+
+- A lead card with `grid-row: span 2` opened **274px of dead air** inside itself — its stage
+  has a fixed ratio and its copy cannot stretch. Tile with column spans only: `4+2 / 2+2+2 /
+  2+2+2` fills every row exactly with nothing spanning rows.
+- Eight cards into three columns needs exactly one double-width card. Putting the span on
+  card **8** tiled just as neatly and made the *last* card the section's visual hero — its
+  device rendered 349px against a 194–232px set. **The span belongs on the lead card.**
+- When row-mates stretch to the tallest, pin the CTA to the bottom (`margin-top: auto`) so
+  the slack lands in one deliberate place and every card's action shares a baseline.
+
+---
+
 ## 6. Traps that cost real time
 
 | Trap | Symptom | Fix |

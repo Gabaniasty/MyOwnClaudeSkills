@@ -63,6 +63,26 @@ Multi-select.
 
 ---
 
+## The question that is skipped most often, and costs the most
+
+### Q4b. Name 2-3 sites whose look you admire (header: `References`)
+
+**Ask this on every project.** The user's own taste is the single highest-signal input
+into the design and the one thing that cannot be inferred from anything else. One named
+site relocates a project faster than a paragraph of adjectives.
+
+If they have none, do not fall back to "modern and clean". Offer **named classes** and let
+them choose (`10-reference-and-components.md` §3): developer-tool minimal, Swiss
+editorial, motion showcase, premium consumer, technical credibility.
+
+Pair it with the negative, which people hold more strongly and state more precisely:
+*"Anything it must never look like?"* Capture verbatim.
+
+> Skipping this is how a project ends up competent and forgettable. The output lands on
+> the average of everything the model has seen, because nothing pulled it anywhere else.
+
+---
+
 ## Round 2 — only what is still genuinely open
 
 Ask at most four. Drop any the brief settled.

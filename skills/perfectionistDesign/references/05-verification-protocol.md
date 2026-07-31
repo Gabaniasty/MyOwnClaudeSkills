@@ -96,10 +96,49 @@ or a slot you forgot to wire.
 
 ---
 
+## 2.5 ORDER THE PASSES — this file's own instruments have lied twice
+
+Before writing a combined audit, fix the order. Two false alarms came from the harness, not
+the page, and both were reported to the user before being caught:
+
+1. **Pixel-sampling passes run FIRST.** Anything that mutates global state — a `data-theme`
+   flip, an injected stylesheet, a forced class — runs **LAST**. An audit that toggled to
+   dark and back, then read hero text colours, compared *dark-theme text* against
+   *light-theme photo pixels* and invented **4 contrast failures**.
+2. **Distinguish "not loaded yet" from "failed".** `!img.complete` is true for every lazy,
+   offscreen image. Ten "broken images" were ten images that had simply not been requested.
+
+```js
+const broken = imgs.filter(i => i.complete && i.naturalWidth === 0);   // real failure
+const notYet = imgs.filter(i => !i.complete);                          // just lazy
+```
+
+3. **Re-run any failing check in isolation before reporting it.** If it passes alone, the
+   harness is the bug. Say that plainly and fix the harness — see Gate 24.
+
+4. **Pin animated elements to their worst frame** before measuring geometry, or a
+   measurement catches an arbitrary phase of an idle float.
+
+---
+
 ## 3. Contrast against rendered pixels
 
 Not element boxes, not the declared background. Composite the actual backdrop onto a
 canvas, then sample the **glyph runs** via `Range.getClientRects()`.
+
+> **Glyph runs, not block boxes — and this is not a detail.** A block element's rect spans
+> the empty space to the right of every short line, so sampling it finds dark pixels no
+> letter ever touches. Measured that way, one hero reported "impossible even at full white."
+> Measured on glyph extents, the same hero needed **no scrim at all**.
+
+> **Check which axis actually crops before tuning `object-position`.** A 1.43:1 image in a
+> 1.99:1 box crops vertically; the horizontal value is inert and tuning it does nothing.
+> `panX = naturalWidth * scale - box.width` — if that is 0, stop turning that dial.
+
+> **Name the BINDING element.** One 12.5px caption in the faintest ink token was, alone,
+> forcing an 86% wash over an entire photograph. Report `tightest: <element> <got>/<need>`
+> so the cheapest fix is visible. Order of levers: re-cut the plate → restyle the one
+> binding element → narrow the column → only then a scrim, binary-searched to its minimum.
 
 ```js
 (async () => {

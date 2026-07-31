@@ -58,6 +58,28 @@ Before the first `codex exec`:
       **Never `Start-Job` inside a foreground call** — the job dies when the call returns
       and the harness reports success. (Gate 7, broken twice.)
 
+### Derive each plate's ASPECT from the box it will live in (Gate 19)
+
+Do this before writing the prompt — it cannot be fixed later in CSS.
+
+- [ ] For every `object-fit: cover` slot, compute `widestViewport / bandHeightThere`.
+      Ask for **that** ratio and **at least** the widest viewport in pixels.
+- [ ] A 1.43:1 plate in a 2.66:1 band is a **1.77× upscale** at 1920. That is the
+      "it gets more zoomed in on bigger screens" complaint, decided at prompt time.
+- [ ] If text will sit on the plate, say so in the prompt: name the half that must stay
+      **bright, empty and evenly lit**. Doing this took one hero's scrim requirement from
+      86% to zero.
+
+### If you are REGENERATING (a palette change, a re-shoot) (Gate 18)
+
+- [ ] Retire the old masters somewhere recoverable — do not delete until every replacement
+      is confirmed.
+- [ ] Delete **all derived variants** of each regenerated slug before reprocessing, or the
+      srcset will mix generations and serve the old image at some viewport widths.
+- [ ] The processing manifest and the srcset reconciler must both be **derived from what the
+      document references**, and must cover every slug, not a prefix.
+- [ ] Running workers in parallel? See Gate 27 — disarm the "newest file wins" fallback first.
+
 ---
 
 ## Entering any "is it done yet?" check
@@ -73,12 +95,25 @@ check reported absence or failure, the check was wrong and the artefact was fine
 | "deploy 404" | container restart window; 200 on the next poll |
 | "codex failed, exit 255" | work completed; a post-success validation exited non-zero |
 | "hidden without .js: 1" | sampled in the same frame as the class change |
+| "4 hero contrast failures" | the audit had flipped `data-theme` and back, then read colours before repaint |
+| "10 broken images" | all 10 were `loading="lazy"` and offscreen — not yet requested |
+| "the chroma key failed, I can see green" | 0% opaque green; the viewer was painting alpha-0 pixels' leftover RGB |
+| "your API key is rejected" | **my own repair script had overwritten it** with another project's stale key |
 
 So, in order:
 1. Check **every plausible location**, not the one you expect.
 2. A **non-zero exit is not evidence of a missing artefact** — go look for the artefact.
 3. A **404 or a blank screenshot may be a timing window** — poll again before concluding.
-4. Only after all three: conclude the thing is actually broken.
+4. **Re-run the failing check in isolation.** If it passes alone, your harness is the bug —
+   ordering, a mutated global, or a stale read. Say so plainly and fix the harness.
+5. **Judge a transparent asset by measuring alpha, never by looking at it.** Viewers differ
+   on how they paint alpha-0 pixels. `transparent %` and `opaque-green %` are the evidence.
+6. Only after all five: conclude the thing is actually broken.
+
+**And before you tell the user their input is at fault, prove it is not yours.** The single
+most expensive error in this skill's history was reporting "your API key is invalid" when a
+script of mine had silently replaced it (Gate 25). Re-read what you actually wrote, masked,
+and compare it to what they actually gave you.
 
 ---
 
@@ -109,19 +144,44 @@ const spread = Math.max(...sizes) - Math.min(...sizes);
 Apply to: avatar diameters, icon bounding boxes, card heights, image aspect ratios, gap
 rhythm, stroke weights.
 
+**Measure what RENDERS, not the box.** Under `object-fit: contain`, a shared box equalises
+nothing: width binds on landscape assets, height binds on portrait ones, and a laptop
+rendered 190px tall beside a 277px phone while every asset passed its own check (Gate 22).
+
+**And re-derive the check when the assets change kind.** A set-consistency check inherited
+from an earlier project measured the "paper" behind each subject — correct for opaque
+renders, meaningless for chroma-keyed cutouts, where it would score perfect forever.
+
+**3. Order the passes.** Pixel-sampling passes run FIRST; anything that mutates global state
+(theme toggles, injected stylesheets, forced classes) runs LAST. A theme flip before a hero
+pixel pass invented 4 failures that did not exist (Gate 24).
+
+**4. Test animated things at their worst frame,** not at whatever phase a screenshot caught.
+Pin the animation to its extreme, then measure (Gate 21).
+
 ---
 
 ## Entering Phase 7 — ship
 
 - [ ] Staged copy audited, not the source folder
-- [ ] Masters, mockups and task files excluded
+- [ ] Deploy folder **derived from the document's own references**, not hand-listed copy
+      rules; assert `referenced === copied` and `missing = 0` (Gate 26)
+- [ ] Masters, mockups, scratch and task files excluded — one working folder was 87.7 MB
+      against an 18.1 MB site
+- [ ] Any credential written to config: addressed by **exact key**, proven with a live
+      authenticated call, printed **masked only** (Gate 25)
+- [ ] Config written by a CLI: **read the file back** and confirm the key matches what the
+      consumer reads (`B:\path` vs `B:/path` has already burned a session)
 - [ ] After deploy: **poll** for readiness before auditing (restart window)
 - [ ] Live audit covers `srcset`, and magic numbers prove real bytes
+- [ ] Every referenced asset **HEAD-checked on the live host** — a deploy tool's success
+      message is not evidence the page renders
 - [ ] At least one placed asset downloaded from the live host and **opened**
 
 ---
 
 ## The one-line version
 
-> Inventory every element, generate every small asset alone, doubt every failing check,
-> measure the property you are claiming, and check the set as well as the item.
+> Inventory every element, cut every plate to the box it will live in, generate every small
+> asset alone, doubt every failing check before doubting the artefact, measure the property
+> you are claiming on the pixels that actually render, and check the set as well as the item.

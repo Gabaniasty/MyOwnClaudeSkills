@@ -25,6 +25,20 @@ Get-ChildItem "$src\images" -File | Copy-Item -Destination "$stage\images"   # f
 A 32 MB folder should stage to ~2 MB. Then run the reference audit
 (`05-verification-protocol.md` §2) **against the stage**, not the source.
 
+### Derive the file list from the DOCUMENT, not from a copy rule
+
+Copying "all files in `images/`" is one retired asset away from shipping dead weight, and
+one *new folder* away from missing something. Ask the document what it needs:
+
+```js
+const refs = new Set(html.match(/(?:images|logo|fonts)\/[\w.\/-]+\.(?:png|jpe?g|webp|svg|avif|ico|woff2?)/g));
+// copy exactly these, plus index.html / serve.mjs / package.json
+```
+
+**Assert `referenced === copied` and `missing === 0`** before deploying. A working folder of
+**87.7 MB** staged to **18.1 MB** this way, with 149 referenced and 149 copied — and the
+assertion is what makes that a fact rather than a hope. This is Gate 26.
+
 ---
 
 ## 2. Deploy
@@ -43,6 +57,33 @@ initialize → notifications/initialized → tools/list → tools/call
 
 Read credentials from the existing config; never print a key back to the user.
 
+### NEVER inherit a credential by search order (Gate 25 — the costliest error in this file)
+
+A repair script scanned every project in a shared config for a server entry by **name** and
+kept the first match. A different project already had one, so it copied that project's
+**stale API key** over the one the user had just supplied. The `401 invalid api key` was then
+reported back as *"your key is rejected, please re-copy it"* — while their credential had
+been correct all along.
+
+- Address config by **exact key**. Never "first match", never "any project containing".
+- **Prove the credential end-to-end before saying anything about it**, with the SDK out of
+  the path: a direct request that returns `200` and identifies the tenant. `401` on the
+  authenticated endpoint while an unauthenticated one returns `200` isolates it precisely.
+- **Verify the wrapper before blaming the secret.** Unpacking the npm package took two
+  minutes and confirmed the env var names, base URL and auth header were all correct — which
+  is what narrowed it to the stored value.
+- Print **masked only** (`hk_Rt…GQQ (35 chars)`). Masking is what exposed this: the stored
+  key began `hk_Mj`, the user's began `hk_Rtj`.
+
+### Config written by a CLI is keyed by the CWD that CLI ran from
+
+`claude mcp add` run from a Bash shell wrote its entry under `B:/Project`, while the session
+reads `B:\Project`. It reported success and `mcp list` showed it connected — and it would
+have been invisible on restart. **Read the file back and confirm the entry sits under the
+key the consumer actually uses.** Then normalise with a real `.cjs` file; a `node -e` repair
+inside a double-quoted PowerShell string turned `B:\Project` into `B:\\Project` and made it
+worse (Gate 12).
+
 Pass tool arguments via a **file**, not an inline JSON string — Windows paths through two
 layers of shell quoting will mangle. And PowerShell 5.1's `-Encoding utf8` writes a BOM that
 `JSON.parse` rejects, so strip `^﻿` when reading it back.
@@ -53,6 +94,14 @@ layers of shell quoting will mangle. And PowerShell 5.1's `-Encoding utf8` write
 
 A deploy tool returning `"status": "running"` proves a container started. It proves nothing
 about your assets.
+
+> **Include a discriminator that only the NEW build contains.** Re-deploying to the same URL
+> can serve a cached or still-rolling old build, and every asset will resolve perfectly while
+> you audit the previous version. Pick something the change introduced — a new symbol id, a
+> new class — and assert it is present before you believe the numbers:
+> `brand symbols live: 3  coinbase:true zapier:true cursor:true`, and only then report.
+> Write this as a `.cjs` file: a regex containing `/` and quotes inside a double-quoted
+> PowerShell string is a parser error, and it caught this skill's author again (Gate 12).
 
 ```js
 // scripts/liveaudit.cjs

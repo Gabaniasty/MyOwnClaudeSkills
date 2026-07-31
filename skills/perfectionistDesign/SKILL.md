@@ -125,8 +125,13 @@ and the interview tells you which.
 | # | Phase | Reference | Skippable when |
 |---|---|---|---|
 | 0 | Discovery interview | `01-discovery-interview.md` | never |
-| 1 | Mockup generation (ChatGPT) | `02-mockup-prompt.md` | user already has a reference image |
-| 2 | Spec extraction (ChatGPT) | `02-mockup-prompt.md` | user pasted a full written spec |
+| 0.5 | Reference board + component choice | `10-reference-and-components.md` | never |
+| 1 | Mockup generation | `02-mockup-prompt.md` | **NEVER on a redesign.** Only when the user supplies a mockup *of the new design* |
+| 2 | Spec extraction | `02-mockup-prompt.md` | user pasted a full written spec |
+
+> **Phase 1 is not skippable on a redesign, and an existing site is not a reference.**
+> The old site is the thing being replaced. Treating it as the "reference image" that
+> satisfies Phase 1 is what produces a recoloured clone. See §4.7 and Gate 15.
 | 3 | Imagery | `03-image-generation.md` | user supplies their own photography |
 | 4 | Asset pipeline | `03-image-generation.md` | no local images |
 | 5 | Build | `04-build-standards.md` | never |
@@ -151,6 +156,35 @@ text brief.
 > list once produced a confident, wrong "Codex cannot generate images". Verify by listing
 > that path.
 
+### 2.1 Route the job before you route the phases
+
+The phase list above is the same list every time. **Which phases are load-bearing is not.**
+Read the request, name the job out loud in one line, then run the matching column. If the
+request is ambiguous between two of these, that is a Phase 0 question, not a guess.
+
+| | **From nothing** | **Redesign** | **Re-skin / change request** |
+|---|---|---|---|
+| Sounds like | "a landing page for a business-class airline" | "redesign viribus.net.pl" | "make the branding orange", "fix the work section" |
+| Phase 0 | full interview | full interview **plus** what to keep: logo, name, real customers, real projects | one question at most; do not re-interview |
+| Phase 0.5 | reference board from award-winning work in that class | same, and it must diverge from the ORIGINAL | skip |
+| Phase 1 mockup | **yes** | **yes — never treat the old site as the mockup** | no |
+| Phase 3 imagery | generate everything | generate everything | **regenerate only what the change invalidates** |
+| Gates that bind | 4, 5, 13, 19 | 15, 16, 19 | **18** above all, then re-run the full set |
+
+**The third column is the one this skill kept getting wrong.** A change request feels small,
+so it invites skipping the pipeline — and that is exactly when a stale asset survives. A
+palette change invalidates *every generated image*, which means 34 regenerations, a full
+variant purge, a srcset reconcile and the entire gate set re-run. See Gate 18.
+
+**A change request never re-opens settled decisions.** If the user asks for orange, change
+the palette; do not also re-cut the layout, re-pick the type, or re-litigate a section they
+approved three turns ago. Fix what was asked, verify the whole page, report both.
+
+**Derive the sections from the subject, every time.** A business-class airline needs cabin,
+route map, fare classes, lounge, loyalty. A rescue consultancy needs the failure state, the
+diagnosis, the work, the process. Neither section list appears anywhere in this skill,
+and neither should be reachable by reflex — they come out of Phase 0 and the mockup.
+
 ---
 
 ## 3. COMPOSE WITH THE INSTALLED SKILLS
@@ -166,7 +200,10 @@ This skill orchestrates; it does not duplicate. Pull these in at the right momen
 - **`high-end-visual-design`** - when the brief reads luxury, editorial, or premium.
 - **`imagegen-frontend-web`** - Phase 3, for prompt construction.
 - **`image-to-code`** - Phase 2, when a reference image must become layout.
-- **`redesign-existing-projects`** - instead of Phase 1-2 when the job is a redesign.
+- **`redesign-existing-projects`** - at Phase 0, to **audit** the existing site. It supplies
+  the audit and the preservation list. It does **not** supply the new composition and it
+  never replaces Phases 1-2. Reading it as a replacement is exactly how a redesign turns
+  into a reskin. See §4.7.
 - **`minimalist-ui`** / **`industrial-brutalist-ui`** / **`gpt-taste`** - only when the
   design read genuinely lands there.
 
@@ -218,6 +255,39 @@ asserting anything about the filesystem.
 Do not reconstruct this session's history from memory when a transcript exists â€” grep it.
 Self-recollection has been wrong about counts and about which skills were loaded.
 
+### 4.7 A redesign that resembles the original is a FAILED redesign
+
+**This rule exists because a real redesign shipped as a reskin.** Same section order, same
+type pairing, same hero composition, same palette. Every individual choice was defensible as
+"brand fidelity". The result was the old site with more padding, and the user's first
+reaction was *"it looks almost identical."*
+
+The mechanism was structural, not a lapse in taste:
+
+> With no mockup of the NEW design, the only composition in front of you is the OLD one.
+> You will anchor on it. There is no amount of care that prevents this. The fix is not
+> trying harder, it is refusing to build until a new composition exists.
+
+**So on every redesign:**
+
+1. **Phase 1 runs. Always.** Generate a full-page mockup of the *new* design before writing
+   any markup. The existing site is input to the audit, never the reference for the build.
+2. **Feed the old site into the mockup prompt as a NEGATIVE**, not a positive. "Must not
+   resemble this" beats "modernise this" every time. `02-mockup-prompt.md` PROMPT 1-R.
+3. **Separate what is preserved from what is redesigned, in writing, before Phase 1.**
+   Preserved is normally a short list: logo, company name, brand hue, copy, legal text,
+   URL structure and section ids. **Everything else is in scope.** Layout, section order,
+   type pairing, grid, imagery, motion and page structure are NOT brand.
+4. **Run Gate 15 before reporting the redesign complete.**
+
+**The trap in the word "preserve".** A client saying "keep the logo and company name" is
+naming two assets. It is not asking you to keep the section order, the type scale, or the
+hero composition. Read the preservation list literally and narrowly. Anything not named is
+yours to change, and on a redesign the default is to change it.
+
+**The test:** put the old and new side by side at 25% zoom, where you read silhouette and
+rhythm rather than detail. If a stranger would call them the same site, it failed.
+
 ### 4.6 A prose rule is not a control
 Three rules in this skill were written down and then violated in a later phase of the same
 session. If a lesson matters, it belongs in `07-failure-gates.md` as a command with a pass
@@ -249,6 +319,15 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] **Gate 4** standalone renders == sections identified
 - [ ] **Gate 5** the reference mockup's own contrast measured, deviations recorded
 - [ ] **Gate 6** audit covers `srcset`; at least one placed asset opened and eyeballed
+- [ ] **Gate 18** regenerated slugs: old variants deleted first; `unused: 0` AND `MISSING: 0`
+- [ ] **Gate 19** every `cover` image renders at scale **≤ 1.0** at the widest breakpoint
+- [ ] **Gate 20** contrast measured on **glyph extents**; the binding element named; scrim actually painted reported
+- [ ] **Gate 21** breakouts: **0 collisions, 0 side spills**, at every breakpoint, at the animation's worst frame
+- [ ] **Gate 22** rendered-size spread across any repeated set reported as a number
+- [ ] **Gate 23** 0 duplicate `style` attributes; every declared animation proven to receive its driver
+- [ ] **Gate 24** any failing check re-run in isolation before it is reported as a defect
+- [ ] **Gate 25** credentials addressed by exact key, proven with a live call, printed masked
+- [ ] **Gate 26** deploy folder derived from the document; `referenced == copied`
 - [ ] 0 broken images, 0 console errors, 0 stranded reveals
 - [ ] 0 horizontal overflow at 375 / 768 / 1024 / 1440 / 1920
 - [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
@@ -256,7 +335,7 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] Keyboard: focus rules present, dialogs trap and restore focus, Escape closes
 - [ ] Every primary CTA leads somewhere real â€” a form, not a scroll to another button
 - [ ] `credits.json` records provenance and outstanding caveats
-- [ ] Deployed URL fetched and re-audited live, not assumed from a success message
+- [ ] Deployed URL fetched and re-audited live, and **every asset HEAD-checked on that host**
 
 ### The failure this list exists to prevent
 Nine times across six projects, a user reported breakage that the immediately preceding turn
@@ -276,10 +355,16 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/04-build-standards.md` â€” design system, single-file architecture, JS patterns, traps
 - `references/05-verification-protocol.md` â€” the measurement scripts
 - `references/06-ship-deploy-git.md` â€” staging, deploy, live audit, git
-- `references/07-failure-gates.md` â€” **13 mechanical gates, every one from a defect that
-  reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1.**
+- `references/07-failure-gates.md` â€” **27 mechanical gates, every one from a defect that
+  reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1;
+  Gate 19 must be read at Phase 3, before a single image prompt is written, because a plate
+  cut to the wrong aspect cannot be repaired in CSS afterwards.**
 - `references/08-application-track.md` â€” **forums, dashboards, admin panels and any other
   thing people *use* rather than read. Replaces Phases 1-2 and the build half of Phase 5.**
 - `references/09-phase-entry-checks.md` - **PREVENTIVE. Run the relevant block when
   ENTERING a phase. Read this one before you need it, not after.**
+- `references/10-reference-and-components.md` - **Phase 0.5. Naming the class of site,
+  building a reference board from real award-winning work, and choosing UI components by
+  intent with a written justification for each. Gates 15 and 16 prove a redesign is
+  different and complete; neither proves it is good. This is the file for good.**
 - `templates/credits.json` â€” asset ledger template
