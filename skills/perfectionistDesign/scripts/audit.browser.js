@@ -29,19 +29,44 @@
     return [r, g, b, n.length > 3 ? n[3] : 1];
   }
 
+  /* THE GROUND UNDER AN ELEMENT, COMPOSITING TRANSLUCENT LAYERS.
+   *
+   * The previous version skipped any background with alpha <= 0.85 and, if it
+   * never found an opaque one, returned WHITE. On a dark page with a translucent
+   * sticky header — rgba(10,9,8,.72) over dark content — it therefore compared
+   * bone text against white and reported 31 contrast failures that do not exist.
+   * The agent had explicitly warned that the header composes against whatever
+   * scrolls beneath it; the harness was wrong and the artefact was fine.
+   * Gate 24, on this file's own instruments, again.
+   *
+   * Now: collect every layer up the tree, then composite them back-to-front over
+   * the ROOT background — never over an assumed white. */
   function groundOf(el) {
+    const layers = [];
     let e = el;
     while (e && e !== document.documentElement) {
       const cs = getComputedStyle(e);
       if (cs.backgroundImage && cs.backgroundImage.includes("gradient")) {
         const m = cs.backgroundImage.match(/rgba?\([^)]+\)|#[0-9a-f]{6}/i);
-        if (m) { const c = parseColor(m[0]); if (c) return c.slice(0, 3); }
+        if (m) { const c = parseColor(m[0]); if (c) layers.push([c.slice(0, 3), c[3] ?? 1]); }
       }
       const c = parseColor(cs.backgroundColor);
-      if (c && c[3] > 0.85) return c.slice(0, 3);
+      if (c && (c[3] ?? 1) > 0.01) {
+        layers.push([c.slice(0, 3), c[3] ?? 1]);
+        if ((c[3] ?? 1) >= 0.999) break;              // fully opaque: nothing below shows
+      }
       e = e.parentElement;
     }
-    return [255, 255, 255];
+    /* base: the root's own background, or the body's — NOT an assumption */
+    let base = parseColor(getComputedStyle(document.documentElement).backgroundColor);
+    if (!base || (base[3] ?? 1) < 0.999) base = parseColor(getComputedStyle(document.body).backgroundColor);
+    let out = base && (base[3] ?? 1) > 0.5 ? base.slice(0, 3) : [255, 255, 255];
+    /* composite from the bottom up */
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const [c, a] = layers[i];
+      out = out.map((v, k) => c[k] * a + v * (1 - a));
+    }
+    return out;
   }
 
   const needFor = (cs) => {
@@ -199,6 +224,103 @@
       }).length,
       strandedReveals: [...document.querySelectorAll(".rv")]
         .filter((e) => getComputedStyle(e).opacity !== "1" && e.offsetParent !== null).length,
+    };
+
+    /* ---- 3.5 ALIGNMENT AND RHYTHM (Gate 28) ----
+       "It looks off" is almost always one of three measurable things: edges that
+       nearly line up but do not, spacing that does not come from a scale, or
+       optical sizes that drift across a repeated set. Eyeballing catches none of
+       them reliably at 1px; this does. */
+    const gutters = {};
+    const sections = [...document.querySelectorAll("section, header, footer, main > div")];
+    for (const s of sections) {
+      for (const c of s.querySelectorAll("h1,h2,h3,p,ul,ol,figure,form,.wrap > *")) {
+        if (!c.offsetParent) continue;
+        const r = c.getBoundingClientRect();
+        if (r.width < 40) continue;
+        const L = Math.round(r.left);
+        gutters[L] = (gutters[L] || 0) + 1;
+      }
+    }
+    /* an edge used by 2+ elements is intentional; one that sits 1-3px from a
+       popular edge is a mistake, not a decision */
+    const edges = Object.entries(gutters).map(([x, n]) => [+x, n]).sort((a, b) => b[1] - a[1]);
+    const major = edges.filter(([, n]) => n >= 3).map(([x]) => x);
+    const nearMiss = edges.filter(([x, n]) =>
+      n <= 2 && major.some((m) => Math.abs(m - x) > 0 && Math.abs(m - x) <= 3));
+
+    /* vertical rhythm: gaps between siblings should come from a small set */
+    const gaps = [];
+    for (const s of sections) {
+      const kids = [...s.children].filter((k) => k.offsetParent).map((k) => k.getBoundingClientRect());
+      for (let i = 1; i < kids.length; i++) {
+        const g = Math.round(kids[i].top - kids[i - 1].bottom);
+        if (g > 0 && g < 400) gaps.push(g);
+      }
+    }
+    const gapCounts = {};
+    gaps.forEach((g) => (gapCounts[g] = (gapCounts[g] || 0) + 1));
+    const distinctGaps = Object.keys(gapCounts).length;
+
+    /* half-pixel geometry: a real source of blurred edges */
+    let subpixel = 0;
+    document.querySelectorAll("section,header,footer,img,button,.card,[class*=card]").forEach((e) => {
+      if (!e.offsetParent) return;
+      const r = e.getBoundingClientRect();
+      if (Math.abs(r.left % 1) > 0.05 && Math.abs(r.left % 1) < 0.95) subpixel++;
+    });
+
+    out.alignment = {
+      majorEdges: major.sort((a, b) => a - b),
+      nearMissEdges: nearMiss.map(([x, n]) => ({ x, used: n })),   // should be []
+      distinctGapValues: distinctGaps,                              // a scale, not chaos
+      commonGaps: Object.entries(gapCounts).sort((a, b) => b[1] - a[1]).slice(0, 6)
+        .map(([g, n]) => `${g}px x${n}`),
+      subpixelElements: subpixel,
+    };
+
+    /* ---- 3.6 MEDIA THAT DOES NOT FILL ITS CONTAINER (Gate 29) ----
+       "The images look too small" is almost never the image. It is a media box
+       stretched by its grid row while the picture inside keeps its intrinsic
+       height, leaving dead space that reads as a black void.
+       Measured on a real build: a .coach-media div 428px tall containing a
+       <picture> of 326px — 102px of hole, and the <picture> was the culprit,
+       because it does NOT inherit sizing from its parent and img{height:100%}
+       resolves against IT, not the container. */
+    const starved = [];
+    document.querySelectorAll("img").forEach((img) => {
+      if (!img.offsetParent) return;
+      const ib = img.getBoundingClientRect();
+      /* the nearest ancestor that is not just a <picture>/<figure> wrapper */
+      let host = img.parentElement;
+      while (host && /^(PICTURE|FIGURE|SPAN)$/.test(host.tagName)) host = host.parentElement;
+      if (!host) return;
+      const hb = host.getBoundingClientRect();
+      if (hb.height < 40) return;
+      const fillH = ib.height / hb.height, fillW = ib.width / hb.width;
+      if (fillH < 0.9 && hb.height - ib.height > 24) {
+        starved.push({ src: (img.currentSrc || "").split("/").pop(),
+          host: (host.className || host.tagName).toString().slice(0, 26),
+          hostH: Math.round(hb.height), imgH: Math.round(ib.height),
+          deadPx: Math.round(hb.height - ib.height),
+          fills: Math.round(fillH * 100) + "%",
+          wrappedInPicture: img.parentElement.tagName === "PICTURE" });
+      }
+      void fillW;
+    });
+
+    /* fractional geometry on media = a genuinely blurred edge */
+    const fractional = [...document.querySelectorAll("img")].filter((i) => {
+      if (!i.offsetParent) return false;
+      const r = i.getBoundingClientRect();
+      const f = (v) => Math.abs(v % 1) > 0.05 && Math.abs(v % 1) < 0.95;
+      return f(r.height) || f(r.width) || f(r.left) || f(r.top);
+    }).length;
+
+    out.media = {
+      starvedOfHeight: starved.length,      // must be 0
+      detail: starved.slice(0, 5),
+      fractionalGeometry: fractional,       // blurred edges
     };
 
     /* ---- 4. ASSETS ---- */

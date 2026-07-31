@@ -126,6 +126,7 @@ and the interview tells you which.
 |---|---|---|---|
 | 0 | Discovery interview | `01-discovery-interview.md` | never |
 | 0.5 | Reference board + component choice | `10-reference-and-components.md` | never |
+| 0.6 | Taste floor: design read, dials, anti-default check | `11-taste.md` | **never** |
 | 1 | Mockup generation | `02-mockup-prompt.md` | **NEVER on a redesign.** Only when the user supplies a mockup *of the new design* |
 | 2 | Spec extraction | `02-mockup-prompt.md` | user pasted a full written spec |
 
@@ -207,7 +208,32 @@ This skill orchestrates; it does not duplicate. Pull these in at the right momen
 - **`minimalist-ui`** / **`industrial-brutalist-ui`** / **`gpt-taste`** - only when the
   design read genuinely lands there.
 
-State which ones you are pulling and why, in one line. Do not load all of them.
+- **`full-output-enforcement`** - at Phase 5, on any build large enough to tempt a
+  truncation. It bans placeholder patterns and `// ...rest unchanged`. A half-written page
+  that *looks* finished is the single most expensive kind of output.
+
+### Loading is not applying. Prove it.
+
+Naming a skill in a sentence and then building on autopilot is the failure this section
+keeps having. Before you write markup, put **four lines** in your reply:
+
+```
+Design read : <page kind> for <audience>, <vibe> language, leaning <aesthetic family>
+Dials       : VARIANCE n / MOTION n / DENSITY n
+Skills      : <the ones you loaded, and the one-line reason for each>
+Rejected    : <the default you deliberately did NOT reach for, and what you did instead>
+```
+
+The **Rejected** line is the one that does the work. "I did not use a centred hero over a
+dark gradient; the brief is a strength gym, so the hero is a full-bleed photograph with the
+copy pinned left" is evidence of a decision. Silence there means the defaults won.
+
+### If none of them are installed
+
+They may not be — someone can download this skill on its own, and the dashboard agent runs
+in a session with no personal config. **`references/11-taste.md` is the built-in floor and
+it is never skippable.** It carries the anti-default catalogue, the dials, the locks and
+the self-check. The standalone skills go further; the floor is what guarantees a baseline.
 
 ---
 
@@ -328,6 +354,8 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] **Gate 24** any failing check re-run in isolation before it is reported as a defect
 - [ ] **Gate 25** credentials addressed by exact key, proven with a live call, printed masked
 - [ ] **Gate 26** deploy folder derived from the document; `referenced == copied`
+- [ ] **Gate 28** nearMissEdges: 0, subpixelElements: 0
+- [ ] **Gate 29** media starvedOfHeight: 0, fractionalGeometry: 0 (dead space + blur)
 - [ ] 0 broken images, 0 console errors, 0 stranded reveals
 - [ ] 0 horizontal overflow at 375 / 768 / 1024 / 1440 / 1920
 - [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
@@ -355,7 +383,7 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/04-build-standards.md` â€” design system, single-file architecture, JS patterns, traps
 - `references/05-verification-protocol.md` â€” the measurement scripts
 - `references/06-ship-deploy-git.md` â€” staging, deploy, live audit, git
-- `references/07-failure-gates.md` â€” **27 mechanical gates, every one from a defect that
+- `references/07-failure-gates.md` â€” **29 mechanical gates, every one from a defect that
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1;
   Gate 19 must be read at Phase 3, before a single image prompt is written, because a plate
   cut to the wrong aspect cannot be repaired in CSS afterwards.**
@@ -363,6 +391,10 @@ Read the one for the phase you are in. Do not preload them all.
   thing people *use* rather than read. Replaces Phases 1-2 and the build half of Phase 5.**
 - `references/09-phase-entry-checks.md` - **PREVENTIVE. Run the relevant block when
   ENTERING a phase. Read this one before you need it, not after.**
+- `references/11-taste.md` - **THE ANTI-SLOP FLOOR, built in.** The gates prove a page is
+  correct; nothing in them proves it is good. Self-contained, so it works for someone who
+  downloaded this skill alone and for the dashboard agent, neither of whom has the
+  standalone taste skills. Read it BEFORE choosing a colour, a typeface or a layout.
 - `references/10-reference-and-components.md` - **Phase 0.5. Naming the class of site,
   building a reference board from real award-winning work, and choosing UI components by
   intent with a written justification for each. Gates 15 and 16 prove a redesign is

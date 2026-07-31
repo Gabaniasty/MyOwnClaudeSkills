@@ -938,6 +938,90 @@ after the fallback was disarmed.
 
 ---
 
+## GATE 28 — "It looks off" is three measurable things
+
+**Phase 6.** Alignment is not a matter of taste and it is not reliably eyeballable at 1px.
+Almost every "something's wrong but I can't say what" reduces to one of these:
+
+```js
+// 1. NEAR-MISS EDGES — elements that almost share a left edge but do not.
+//    An edge used by 3+ elements is intentional. One sitting 1-3px off it is a
+//    mistake, and it is exactly the distance the eye notices but cannot name.
+nearMissEdges  ->  must be []
+
+// 2. SPACING THAT CAME FROM NOWHERE. Gaps should come from a small scale.
+//    Twenty distinct gap values in one page means the spacing was typed, not designed.
+distinctGapValues  ->  a handful, not dozens
+
+// 3. SUBPIXEL GEOMETRY. An element at x=133.5 renders with a blurred edge.
+//    Usually a percentage width or an odd-numbered flex gap.
+subpixelElements  ->  0
+```
+
+All three are in `scripts/audit.browser.js`; run `await pdAudit()` and report
+`out.alignment`. Measured on a real build: `majorEdges [40, 77, 133]`,
+`nearMissEdges []`, but **9 subpixel elements** — invisible in a screenshot, and a
+genuine source of soft edges.
+
+**Pass condition:** `nearMissEdges: []` and `subpixelElements: 0`. A non-zero count is
+not automatically a defect — a deliberately offset element is fine — but it must be a
+decision you can name, not a surprise.
+
+---
+
+## GATE 29 — `<picture>` does not inherit sizing. Size the PICTURE, not the img.
+
+**Phase 6, and Phase 5 the moment you write a `<picture>`.**
+
+The user reported *"images are too small in certain places"* and *"things are blurry."*
+Both were one defect:
+
+```
+.coach-media  (grid item, stretched by its row)   428px tall
+  └ <picture>                                     326px      <- auto height
+      └ <img height:100%>                         326px      <- 100% OF THE PICTURE
+```
+
+**102px of dead black space** inside the container, which reads as an image that is
+too small sitting in a void. `img { height: 100% }` resolves against its parent — and
+its parent is the `<picture>`, not the box you sized. `<picture>` is an inline wrapper
+with no dimensions of its own; it silently breaks every `height: 100%` chain through it.
+
+```css
+/* WRONG — the chain is broken by the wrapper */
+.media { height: 100%; }
+.media img { width: 100%; height: 100%; object-fit: cover; }
+
+/* RIGHT — the wrapper must be sized too */
+.media { position: relative; }              /* or display:grid */
+.media picture { display: block; width: 100%; height: 100%; }
+.media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+```
+
+**Measure it, do not eyeball it:**
+
+```js
+// for every img, compare against the nearest ancestor that is NOT a wrapper
+starvedOfHeight  ->  must be 0
+```
+
+`scripts/audit.browser.js` reports `out.media.starvedOfHeight` with the dead-pixel count
+and whether a `<picture>` is in the chain.
+
+### The blur has the same root
+
+That container measured `326.203px`. Fractional geometry puts an image on a half-pixel
+boundary and the browser resamples it — a genuinely soft edge, invisible in a
+screenshot, obvious on a real display. `out.media.fractionalGeometry` counts them.
+
+Usual causes: `em`-based dimensions under a `clamp()` font-size, odd-numbered flex gaps,
+and percentage widths that do not divide cleanly. Prefer whole `px` for anything that
+sizes media, and let the flexible unit live on the container instead.
+
+**Pass condition:** `starvedOfHeight: 0` and `fractionalGeometry: 0`.
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the

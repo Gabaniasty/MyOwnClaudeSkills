@@ -1,4 +1,4 @@
-# PHASE 3 — bulletproof image generation via Codex CLI.
+# PHASE 3 -- bulletproof image generation via Codex CLI.
 #
 # Uses YOUR OWN ChatGPT login. There is no API key here and none is needed:
 #   codex login --device-auth      (once, if `codex` is not already signed in)
@@ -6,7 +6,7 @@
 #
 # WHY IT IS BUILT THIS WAY (Gate 8)
 # The first run generated a perfect 1.9 MB image and still "failed", because
-# `-s workspace-write` did not take effect — the session header reported
+# `-s workspace-write` did not take effect -- the session header reported
 # `sandbox: read-only` and codex could not copy the file into the project. The
 # image existed in CODEX_HOME the whole time. So this runner NEVER depends on
 # codex writing to the project: it lets codex save wherever it wants, then copies
@@ -46,12 +46,12 @@ $GenRoot = if ($env:CODEX_HOME) { "$env:CODEX_HOME/generated_images" }
 New-Item -ItemType Directory -Force -Path $Masters, $Scratch | Out-Null
 
 if (-not (Test-Path $Prompts)) {
-  Write-Output "no prompts at $Prompts — write one .txt per asset first"
+  Write-Output "no prompts at $Prompts -- write one .txt per asset first"
   exit 1
 }
 
 # powershell.exe -File passes "a,b,c" as ONE string, so a comma list arrives as a
-# single element and matches nothing. Re-split before use (Gate 12) — a first run
+# single element and matches nothing. Re-split before use (Gate 12) -- a first run
 # of two workers silently processed an empty queue because of exactly this.
 if ($Slugs) {
   $Slugs = @($Slugs -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -102,7 +102,7 @@ function Invoke-Generation {
              Sort-Object LastWriteTime -Descending | Select-Object -First 1
     }
     if (-not $hit -and -not $Strict -and (Test-Path $GenRoot)) {
-      # last resort — ONLY sound when a single generation is in flight
+      # last resort -- ONLY sound when a single generation is in flight
       $hit = Get-ChildItem $GenRoot -Recurse -Filter *.png -ErrorAction SilentlyContinue |
              Sort-Object LastWriteTime -Descending | Select-Object -First 1
     }
@@ -112,7 +112,7 @@ function Invoke-Generation {
   if (-not (Test-Path $out)) { return @{ ok = $false; reason = "no file produced"; exit = $code } }
 
   # verify it is a real decodable image, not a truncated write
-  $probe = node -e "require('sharp')('$out').metadata().then(m=>console.log(m.width+'x'+m.height)).catch(e=>{console.log('BAD');process.exit(1)})" 2>&1
+  $probe = node "$PSScriptRoot/probe-image.cjs" "$out" 2>&1
   if ($probe -match 'BAD' -or -not ($probe -match '^\d+x\d+$')) {
     Remove-Item $out -Force -ErrorAction SilentlyContinue
     return @{ ok = $false; reason = "unreadable image"; exit = $code }
