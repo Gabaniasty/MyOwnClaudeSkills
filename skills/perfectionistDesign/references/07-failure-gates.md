@@ -336,7 +336,7 @@ queue while reporting success (`worker queue (0)`). Re-split inside the script:
 `$Slugs = @($Slugs -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })`.
 
 **`node -e` inside a double-quoted PowerShell string mangles backslashes.** An attempt to
-write the config key `B:\ClientWorkFiverr` produced a literal `B:\\ClientWorkFiverr` after
+write the config key `D:\Projects` produced a literal `D:\\Projects` after
 two levels of escaping — a *new* wrong key, on top of the one being fixed. **Write a real
 `.cjs` file instead.** The skill already says to prefer a script over `node -e`; this is
 what it costs when you do not.
@@ -571,7 +571,7 @@ document.querySelectorAll('*').forEach(el => {
 });
 ```
 
-Full script: `scripts/check-layout.cjs` in the Viribus project.
+Full script: `scripts/check-layout.cjs` in the project it came from.
 **Pass condition: `0` problems.** Report the number.
 
 ### Also check the tag tree
@@ -859,7 +859,7 @@ Gate 2 applied to your own tools: *the artefact was fine every time.*
 
 **Phase 7, and any time you touch a config file. This one cost the most trust.**
 
-A repair script scanned every project in a shared config for an entry named `breezedeploy`
+A repair script scanned every project in a shared config for an entry named `<deploy-host>`
 and kept **the first one it found**. Another project already had one, so it copied that
 project's stale API key over the key the user had just supplied. The resulting `401 invalid
 api key` was then reported back to the user as *"your key is rejected, please re-copy it"* —
@@ -881,8 +881,8 @@ when their credential had been correct the entire time.
 
 ### Config written by a CLI is keyed by the CWD it ran from
 
-`claude mcp add` run from a Bash shell wrote its entry under `B:/ClientWorkFiverr`, while
-the session reads `B:\ClientWorkFiverr`. It reported success, `mcp list` showed it connected,
+`claude mcp add` run from a Bash shell wrote its entry under `D:/Projects`, while
+the session reads `D:\Projects`. It reported success, `mcp list` showed it connected,
 and it would have been invisible on restart. **After any config-writing CLI, read the file
 back and confirm the entry is under the key the consumer actually uses.**
 

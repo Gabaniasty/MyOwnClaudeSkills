@@ -164,7 +164,7 @@ request is ambiguous between two of these, that is a Phase 0 question, not a gue
 
 | | **From nothing** | **Redesign** | **Re-skin / change request** |
 |---|---|---|---|
-| Sounds like | "a landing page for a business-class airline" | "redesign viribus.net.pl" | "make the branding orange", "fix the work section" |
+| Sounds like | "a landing page for a business-class airline" | "redesign example-client.com" | "make the branding orange", "fix the work section" |
 | Phase 0 | full interview | full interview **plus** what to keep: logo, name, real customers, real projects | one question at most; do not re-interview |
 | Phase 0.5 | reference board from award-winning work in that class | same, and it must diverge from the ORIGINAL | skip |
 | Phase 1 mockup | **yes** | **yes — never treat the old site as the mockup** | no |
