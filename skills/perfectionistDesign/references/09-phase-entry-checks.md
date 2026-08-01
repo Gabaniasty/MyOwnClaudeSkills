@@ -44,6 +44,43 @@ harder to use.
 
 ---
 
+## Leaving Phase 0 — the functional contract (Gate 41)
+
+**The mockup is about to become the spec, and it cannot hold behaviour.** Anything
+in the brief that has no visual form will not survive Phase 2, because Phase 2
+extracts the design system *from an image*. Write it down separately, now, or lose
+it.
+
+A real loss, from one build: the brief said *fetch real films from TMDB* and
+*primary action: book a ticket*. What shipped was a footer reading "Powered by
+TMDB" over invented films, and a seat map with hardcoded seats, no click handler
+and a dead Confirm button. Every visible element from the mockup was present. The
+page looked finished.
+
+Emit this in your reply before Phase 1:
+
+```
+FUNCTIONAL CONTRACT
+  data        : real API | static fixtures | invented
+  if real     : provider, called from client or server, how the key is held
+  backend     : yes | no
+  interactions: every control that must DO something, one verb-phrase each
+  deploy      : target, or "local only"
+```
+
+- [ ] Every functional word in the brief appears here — API, live, real, booking,
+      filter, search, login, submit, no-backend, deploy target.
+- [ ] `interactions` is written as things a person can DO, not components that
+      exist. "pick seats and watch the total update", not "seat map".
+- [ ] You have said which parts are legitimately decorative. Anything not in
+      `interactions` may be a picture; anything in it must work.
+
+**Carry this forward verbatim into Phase 5, and prove each line at Phase 6.** If
+the project label changes mid-build, re-state the contract in the new session — a
+brief given under one project does not follow you to another.
+
+---
+
 ## Entering Phase 1 — generating mockups (Gate 39)
 
 **Standing instruction: at least 2 mockups, and the USER picks.** Not "when the job is

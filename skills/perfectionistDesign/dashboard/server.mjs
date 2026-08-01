@@ -161,9 +161,18 @@ async function jobGenerate(projectPath, only) {
   const job = newJob("generate", basename(projectPath), slugs.map((s) => ({ name: s, state: "pending" })));
   (async () => {
     const ps = process.platform === "win32" ? "powershell" : "pwsh";
+    /* -Strict is now UNCONDITIONAL. It disables run-imagegen's "newest png
+       anywhere under CODEX_HOME wins" recovery fallback, which is only sound
+       with exactly one generation in flight. Passing it just for partial runs
+       was already fragile; with -Parallel it would silently mis-assign images
+       between slugs - right filename, wrong picture, no error (Gate 27).
+       PD_IMAGE_PARALLEL lets this be tuned or switched off (=1) without an
+       edit; 3 is a deliberate floor because the ChatGPT subscription's
+       concurrency ceiling is not documented and 429s cost more than they save. */
+    const parallel = Math.max(1, parseInt(process.env.PD_IMAGE_PARALLEL || "3", 10) || 1);
     const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script("run-imagegen.ps1"),
-      "-Root", projectPath];
-    if (only?.length) args.push("-Strict", "-Slugs", only.join(","));
+      "-Root", projectPath, "-Strict", "-Parallel", String(parallel)];
+    if (only?.length) args.push("-Slugs", only.join(","));
     const r = await run(job, ps, args, {
       cwd: projectPath,
       onLine(l) {
@@ -214,9 +223,25 @@ async function jobPipeline(projectPath, kind) {
       jobStep(job, name, "running");
       const r = await run(job, cmd, args, { cwd: projectPath });
       const ok = r.code === 0;
-      /* summarise rather than making the user read the log */
-      const nums = r.out.match(/(MISSING|CORRUPT|UNUSED|total faults|unused)\s*:?\s*(\d+)/gi) || [];
-      jobStep(job, name, ok ? "ok" : "fail", nums.slice(0, 3).join("  ") || (ok ? "passed" : "failed"));
+      /* GATE 42. A page shipped with 48 rendered contrast failures while this
+         reported "gates ok 5/5". Three things had to line up and all three did:
+         the static contrast script exits 0 (so the step said ok), it printed
+         "unsafe pairs : 2" which this regex did not match and therefore dropped,
+         and it printed its own caveat - "do not report contrast OK on the
+         strength of this file alone" - which nothing surfaced.
+         So: widen the counts, treat any non-zero count as NOT a pass regardless
+         of exit code, and carry the tool's stated limits through to the user. */
+      const countRe = /(MISSING|CORRUPT|UNUSED|FAILING|unsafe pairs|total faults|unused|broken|overflow)\s*:?\s*(\d+)/gi;
+      const nums = r.out.match(countRe) || [];
+      const nonZero = nums.filter((s) => !/[:\s](0)\s*$/.test(s));
+      const notCovered = /NOT COVERED HERE|cannot see|does not cover/i.test(r.out);
+      let detail = nums.slice(0, 4).join("  ");
+      if (notCovered) detail += (detail ? "  " : "") + "· partial check";
+      if (!detail) detail = ok ? "passed (no counts reported)" : "failed";
+      /* A count above zero is a finding even when the script exits 0. */
+      const clean = ok && nonZero.length === 0;
+      jobStep(job, name, clean ? "ok" : ok ? "warn" : "fail", detail);
+      if (!clean && ok) jobLog(job, `${name}: ${nonZero.join(", ")}${notCovered ? " (tool reports its own coverage limits)" : ""}`, "warn");
       if (!ok) { failed = true; if (kind !== "gates") break; }   // gates run to completion
     }
     jobEnd(job, failed ? "fail" : "ok");
@@ -341,7 +366,61 @@ async function jobDeploy(projectPath, { project, app, port = 8080, mode = "autos
  * if one is exported globally the CLI would silently bill it, which is exactly
  * what the user asked to avoid.
  */
-const chatSessions = new Map();   // project -> last session id
+/* project -> last claude session id.
+ *
+ * PERSISTED. This was an in-memory Map, which meant any server restart silently
+ * orphaned every running conversation: the transcript stayed on disk under
+ * ~/.claude/projects/<encoded-path>/<session>.jsonl, but the pointer to it was
+ * gone, so the next message started a fresh session with no memory of the brief,
+ * the interview, or a decision the user had already made. It cost a real one:
+ * a restart to enable parallel image generation dropped a cinema build's entire
+ * brief (TMDB, frontend-only, chosen mockup) mid-run.
+ *
+ * A restart must never be able to lose a conversation. If the map is empty on
+ * boot we also recover from Claude Code's own session directory, so even a
+ * settings file deleted by hand does not orphan the work. */
+const chatSessions = new Map();
+
+const SESSIONS_FILE = () => join(LOCAL, "sessions.json");
+
+async function loadChatSessions() {
+  try {
+    const raw = await readFile(SESSIONS_FILE(), "utf8");
+    for (const [k, v] of Object.entries(JSON.parse(raw.replace(/^﻿/, "")))) {
+      if (typeof v === "string" && v) chatSessions.set(k, v);
+    }
+  } catch {}
+}
+
+async function saveChatSessions() {
+  try {
+    await mkdir(LOCAL, { recursive: true });
+    await writeFile(SESSIONS_FILE(), JSON.stringify(Object.fromEntries(chatSessions), null, 2), "utf8");
+  } catch {}
+}
+
+/* Last resort: ask Claude Code where it keeps this project's transcripts and take
+   the newest. The directory name is the absolute project path with the separators
+   and colon flattened to dashes. */
+async function recoverSessionFromDisk(projectPath) {
+  try {
+    /* One dash PER separator, so no `+`. Claude Code maps each character
+       independently: "C:\Users\..." becomes "C--Users-...", because the colon
+       and the backslash each contribute a dash. A greedy `+` collapsed them to
+       "C-Users-...", which matches no directory that exists, and the endpoint
+       silently returned an empty history instead of failing. */
+    const enc = resolve(projectPath).replace(/[\\/:]/g, "-").replace(/^-+/, "");
+    const dir = join(process.env.USERPROFILE || process.env.HOME || "", ".claude", "projects", enc);
+    if (!existsSync(dir)) return null;
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+    if (!files.length) return null;
+    const withTime = await Promise.all(files.map(async (f) => ({
+      id: f.replace(/\.jsonl$/, ""), t: (await stat(join(dir, f))).mtimeMs,
+    })));
+    withTime.sort((a, b) => b.t - a.t);
+    return withTime[0].id;
+  } catch { return null; }
+}
 
 async function jobChat(projectPath, prompt, opts = {}) {
   const s = await loadSettings();
@@ -517,7 +596,18 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "--add-dir", SKILL,
     "--permission-mode", opts.permissionMode || s.permissionMode || "auto"];
   if (s.model) args.push("--model", s.model);
-  const prev = chatSessions.get(proj);
+  let prev = chatSessions.get(proj);
+  /* Nothing in memory is not the same as no conversation. Before starting a fresh
+     session - which throws away the brief - check whether Claude Code already has
+     a transcript for this project on disk. */
+  if (!prev && !opts.fresh) {
+    prev = await recoverSessionFromDisk(projectPath);
+    if (prev) {
+      chatSessions.set(proj, prev);
+      await saveChatSessions();
+      jobLog(job, `resumed conversation ${prev} recovered from disk`);
+    }
+  }
   if (prev && !opts.fresh) args.push("--resume", prev);
   /* THE PROMPT GOES DOWN STDIN, never as an argv element.
      On Windows `claude` is a .cmd shim, so it must be spawned through a shell,
@@ -542,7 +632,10 @@ async function jobChat(projectPath, prompt, opts = {}) {
         if (!line) continue;
         let m; try { m = JSON.parse(line); } catch { jobLog(job, line); continue; }
 
-        if (m.session_id) chatSessions.set(proj, m.session_id);
+        if (m.session_id && chatSessions.get(proj) !== m.session_id) {
+          chatSessions.set(proj, m.session_id);
+          saveChatSessions();   // write through, so a crash cannot orphan it
+        }
 
         /* partial assistant text — this is what makes it feel live */
         if (m.type === "stream_event" && m.event?.type === "content_block_delta" &&
@@ -818,6 +911,53 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, path });
     }
 
+    /* ---- conversation history ----
+       The transcript used to live only in the page's DOM, so every refresh threw
+       the whole conversation away - and a refresh was the ONLY way to recover
+       from a latched composer, so the fix for one bug triggered the other. The
+       agent remembered (it resumes server-side); the user was left staring at an
+       empty page.
+       Claude Code already keeps an authoritative JSONL per session. Read it back
+       rather than inventing a second store that could disagree with it. */
+    if (p === "/api/history") {
+      const proj = safeProject(url.searchParams.get("project"));
+      if (!proj) return json(res, 400, { error: "missing or invalid ?project=" });
+      const projectPath = join(WORKSPACE, proj);
+      let sid = chatSessions.get(proj) || await recoverSessionFromDisk(projectPath);
+      if (!sid) return json(res, 200, { turns: [], session: null });
+      /* One dash PER separator, so no `+`. Claude Code maps each character
+       independently: "C:\Users\..." becomes "C--Users-...", because the colon
+       and the backslash each contribute a dash. A greedy `+` collapsed them to
+       "C-Users-...", which matches no directory that exists, and the endpoint
+       silently returned an empty history instead of failing. */
+    const enc = resolve(projectPath).replace(/[\\/:]/g, "-").replace(/^-+/, "");
+      const file = join(process.env.USERPROFILE || process.env.HOME || "",
+        ".claude", "projects", enc, `${sid}.jsonl`);
+      if (!existsSync(file)) return json(res, 200, { turns: [], session: sid });
+
+      const turns = [];
+      const raw = await readFile(file, "utf8");
+      for (const line of raw.split("\n")) {
+        if (!line.trim()) continue;
+        let o; try { o = JSON.parse(line); } catch { continue; }
+        const role = o.type === "user" ? "me" : o.type === "assistant" ? "pf" : null;
+        if (!role) continue;
+        let c = o.message && o.message.content;
+        if (Array.isArray(c)) c = c.filter((x) => x && x.type === "text").map((x) => x.text).join("\n");
+        if (typeof c !== "string") continue;
+        const text = c.trim();
+        if (!text) continue;
+        /* Skip the machinery the user never typed and should not have to read:
+           tool plumbing, injected reminders, and the skill files the CLI pastes
+           in wholesale when a skill loads. */
+        if (/^\s*<(system-reminder|command-|local-command)/i.test(text)) continue;
+        if (/Base directory for this skill:/.test(text)) continue;
+        if (role === "me" && /tool_result/.test(text)) continue;
+        turns.push({ role, text: text.slice(0, 20000) });
+      }
+      return json(res, 200, { turns, session: sid });
+    }
+
     if (p === "/api/prompts") {
       const proj = safeProject(url.searchParams.get("project"));
       if (!proj) return json(res, 400, { error: "missing or invalid ?project=" });
@@ -919,6 +1059,7 @@ const server = createServer(async (req, res) => {
 const settings = await loadSettings();
 if (settings.workspace) WORKSPACE = settings.workspace;
 await mkdir(WORKSPACE, { recursive: true });
+await loadChatSessions();   // a restart must never orphan a conversation
 
 /* 127.0.0.1, never 0.0.0.0 — this process can start jobs and holds a key */
 server.listen(PORT, "127.0.0.1", () => {

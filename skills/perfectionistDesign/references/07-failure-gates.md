@@ -1663,6 +1663,196 @@ less often than a restated rule.
 
 ---
 
+## GATE 41 — The mockup cannot carry behaviour. Write a FUNCTIONAL CONTRACT.
+
+**Phase 0, and re-read it at Phase 5 and Phase 6. This is the most expensive gap
+this skill has.**
+
+A cinema build was briefed, verbatim: *"connected to a open source API which will
+display available movies"*, *"Find some open source api thats best TMDB"*,
+*"showtimes from API"*, *"all frontend no backend functionality"*, *"primary action
+book a ticket"*.
+
+What shipped:
+
+| Brief | Delivered |
+|---|---|
+| fetch real films from TMDB | a monospace pill reading `TMDB metadata` and a footer line `Powered by TMDB` |
+| primary action: book a ticket | a seat map with `selectedSet = new Set(['F7','F8','F9'])` hardcoded, **no click handler on any seat**, a summary in static HTML, and a `Confirm booking` button with no listener |
+| all frontend, no backend | never reached the build session at all |
+
+**Both failures have one cause, and it is structural, not carelessness.** Phase 1
+turns the brief into an *image* prompt. Phase 2 extracts the design system *from
+that image*. A functional requirement has no visual form, so it survives only as
+the thing it looks like — a credit line, a picture of a seat map — and by Phase 5
+the requirement itself is gone. **The build satisfied the mockup completely and the
+brief not at all**, which is precisely why it passed every visual check and looked
+finished in a screenshot.
+
+### The contract
+
+The interview must emit this, in the reply, as text that travels **beside** the
+mockup and is re-read before building:
+
+```
+FUNCTIONAL CONTRACT
+  data        : real API | static fixtures | invented
+  if real     : which provider, called from client or server, how the key is held
+  backend     : yes | no
+  interactions: every control that must DO something, one line each
+  deploy      : target, or "local only"
+```
+
+`interactions` is the line that would have caught the dead seat map. Write it as
+verbs the user can perform: *"pick seats and see the price update"*, *"complete a
+booking and get a confirmation"*. Anything not on that list is decoration and may
+legitimately be a picture; anything on it must work.
+
+### Two hard rules that fall out of it
+
+1. **A page may not display a provider's name, logo, or "Powered by X" unless it
+   actually consumes X.** Attribution is a factual claim about where the data came
+   from. Printing it over invented data is fabrication, banned by SKILL.md §4.3,
+   and worse than omitting the credit entirely.
+2. **"Renders" is not "works".** A control that looks right and has no listener is
+   a defect at full severity, not a polish item.
+
+### Pass condition, at Phase 6
+
+Exercise every line of `interactions` in the browser and report a number:
+
+```js
+// for each interaction, prove the state actually changed
+document.querySelector('.seat:not(.taken)').click();
+({ selected: document.querySelectorAll('.seat.selected').length,   // must be > 0
+   totalChanged: document.getElementById('summary-total').textContent })
+```
+
+`interactionsSpecified` vs `interactionsProven` must be equal, and both reported.
+A brief that named a primary action and a build where that action does nothing is
+the loudest possible failure, and it shipped because nobody asked the page to do
+anything.
+
+---
+
+## GATE 42 — A tool's own caveat is part of its result
+
+**Phase 6, and any time a script's output is summarised for a human.**
+
+A deployed page carried **48 AA contrast failures** measured against rendered
+pixels. The pipeline reported `gates ok 5/5`. Three things had to go right for that
+to happen, and all three did:
+
+1. `check-contrast.cjs` is a **static** token-pair checker. It exits 0, so the step
+   renders `ok` — while its own stdout says, in as many words:
+   > *"NOT COVERED HERE: text over photographs, gradients, color-mix() or any
+   > translucent ground. Those need the rendered-pixel pass. **Do not report
+   > 'contrast OK' on the strength of this file alone.**"*
+2. It **did** report `unsafe pairs : 2`. The runner's summary regex matched only
+   `MISSING|CORRUPT|UNUSED|faults`, so that count was silently dropped.
+3. `scripts/audit.browser.js` — the rendered-pixel pass that catches all 48 — was
+   never in the gates set. **The pipeline owned the right tool and never ran it.**
+
+The script did its job perfectly. The harness threw away the part that mattered.
+
+**Rules:**
+
+- **Exit code is not a verdict.** A script that exits 0 while printing a non-zero
+  count of anything has not passed. Parse the counts, or do not claim a pass.
+- **A limitation printed by a tool must reach whoever reads the result.** If it
+  says it cannot see X, the report must say X was not checked. Silence reads as
+  "checked and fine".
+- **A summariser must fail loudly on output it does not recognise.** A regex that
+  matches nothing must not render as "passed" — it must render as "unparsed".
+- **If the repo contains a stronger check for the same property, the weak one may
+  not stand in for it.** Static contrast can accompany the rendered-pixel pass; it
+  can never replace it. SKILL.md §6 requires contrast against **rendered pixels**.
+
+**Pass condition:** for every gate, report `name: <numbers it produced>` and
+`notCovered: <its own stated limits>`. A gate line with no numbers is not evidence.
+
+---
+
+## GATE 43 — A deploy folder must be RUNNABLE, not merely complete
+
+**Phase 7.**
+
+`stage` reported `ok ... passed` and the site returned **404** from the host's
+router. The staged folder was:
+
+```
+runtime files : index.html                              <- the failing project
+runtime files : index.html, serve.mjs, package.json     <- a project that deploys
+```
+
+No server, no `package.json`, so the buildpack produced a container that never
+listened on a port and there was nothing to route. Gate 26 checks
+`referenced === copied` — that every **asset** arrived. **It never asks whether the
+folder can run.** A deploy folder has two requirements and only one was gated.
+
+**Extend the stage check to assert a runtime, and report it like the asset count:**
+
+```
+referenced === copied, 0 missing          <- Gate 26, keep
+runtime: package.json + start script + the file it runs   <- Gate 43, new
+```
+
+Fail staging when the folder has neither a start script nor an explicit
+static-host marker. Scaffolding must create these for **every** new project — the
+failing one was scaffolded without them while its sibling had them, which is how
+the gap survived unnoticed.
+
+### And implement Gate 36 rather than writing it down again
+
+The same deploy reported `fail` three times at `verify live`, **14 seconds after
+upload**, while the host was still building. The URL served 200 on a later retry.
+Gate 36 says exactly this — warm the host, retry every non-200 before believing it
+— and it was written into this file that morning and **never implemented in the
+deploy code**. SKILL.md §4.6: a prose rule is not a control. Poll until 200 or a
+real timeout (90s+), retry once, and only then sweep the assets.
+
+**Pass condition:**
+
+```
+root 200, served bytes == built bytes, assets N checked / 0 non-200 after retry
+```
+
+---
+
+## GATE 44 — State derived from events must reconcile against authority
+
+**Any long-running UI or agent loop.**
+
+Three separate stalls in one session, all the same shape:
+
+| Symptom | Cause |
+|---|---|
+| Send button dead, UI claimed "working…", only escape was a reload | `busy` was set by an event and cleared **only** by a `chat:done` event that a server restart meant never arrived |
+| Agent "stuck", actually not running at all | stopping a job killed the chat that launched it; nothing said so |
+| Conversation lost its entire brief | the session id lived in an in-memory Map and a restart orphaned a transcript that was still on disk |
+
+In every case **the authority knew the truth the whole time** — the server knew no
+job was running, the session file was on disk — and the client never asked.
+
+**Rules:**
+
+- An event stream is a *notification channel*, never a source of truth. Any state
+  derived from events needs a periodic reconcile against the authoritative source.
+- **Any lock must have a path out that does not require a restart or reload.** If
+  the only recovery is "refresh", the recovery will destroy something else — here
+  it destroyed the visible conversation, because the transcript lived only in the
+  DOM.
+- **Anything a restart can orphan must be persisted**, and recoverable from the
+  underlying artefact if the pointer is lost.
+- **A stopped or killed unit must say so where the user is looking.** Silence is
+  read as "still working", and the user waits indefinitely.
+
+**Pass condition:** kill the server mid-turn, reload nothing, and confirm the UI
+returns to a usable state on its own within one reconcile interval, with the
+history intact.
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the

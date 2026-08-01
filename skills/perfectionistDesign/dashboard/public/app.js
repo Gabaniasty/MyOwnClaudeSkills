@@ -98,6 +98,63 @@ function card(job) {
   return c;
 }
 
+/* ------------------------------------------------------- visual presentation
+ * An image pipeline that reports its work as a list of filenames is asking the
+ * user to take its word for it. Every generated master is served by the preview
+ * route, so it can simply be SHOWN. Two places:
+ *   - a thumbnail against each finished step, inside the activity card
+ *   - a full comparison strip when a run produced mockups, because Gate 39 says
+ *     the variants must be presented side by side at the same size and the user
+ *     picks. A paragraph describing three mockups is not a choice.
+ * `?v=` busts the cache: a regenerated slug keeps its filename, and without it
+ * the browser would keep showing the old render.
+ */
+const masterURL = (slug, v) => `/preview/${project}/images/_masters/${encodeURIComponent(slug)}.png?v=${v || 1}`;
+
+function lightbox(src, caption) {
+  const wrap = el("div", "lightbox");
+  const img = document.createElement("img");
+  img.src = src; img.alt = caption || "";
+  const cap = el("div", "lb-cap", caption || "");
+  wrap.append(img, cap);
+  wrap.onclick = () => wrap.remove();
+  document.addEventListener("keydown", function esc(e) {
+    if (e.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", esc); }
+  });
+  document.body.appendChild(wrap);
+}
+
+/* Mockups get their own card: large, equal width, labelled, click to enlarge. */
+function mockupStrip(slugs) {
+  const wrap = el("div", "shots");
+  const head = el("div", "shots-h");
+  head.append(el("b", null, slugs.length > 1 ? `${slugs.length} mockups — pick one` : "Mockup"));
+  head.append(el("span", "cnt", slugs.length > 1 ? "click to enlarge" : ""));
+  const grid = el("div", "shots-grid");
+  grid.style.gridTemplateColumns = `repeat(${Math.min(slugs.length, 3)}, minmax(0, 1fr))`;
+  slugs.forEach((slug) => {
+    const fig = el("figure", "shot");
+    const img = document.createElement("img");
+    img.src = masterURL(slug, Date.now());
+    img.alt = slug;
+    /* NOT lazy. The strip is the thing the user has to look at to answer "which
+       one?" - deferring it means the card appears with three empty frames and
+       the question is unanswerable. Lazy stays on the small step thumbnails,
+       which are incidental. */
+    img.loading = "eager";
+    img.decoding = "async";
+    /* A mockup that failed to render must look broken, not absent — an empty
+       gap reads as "there were only two" and hides a failure. */
+    img.onerror = () => { fig.classList.add("missing"); fig.dataset.err = "did not render"; };
+    img.onclick = () => lightbox(img.src, slug);
+    const cap = el("figcaption", null, slug.replace(/^_mockup_?/, "").toUpperCase() || slug);
+    fig.append(img, cap);
+    grid.appendChild(fig);
+  });
+  wrap.append(head, grid);
+  return wrap;
+}
+
 function paint(c, job, steps) {
   const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
   c._bar.style.width = pct + "%";
@@ -107,6 +164,18 @@ function paint(c, job, steps) {
     const row = el("div", "it");
     row.dataset.s = s.state;
     row.append(el("span", "d"), el("span", "nm", s.name), el("span", "dt", s.detail || ""));
+    /* Thumbnail as soon as the asset exists, so a wrong image is caught while
+       the run is still going rather than at the end. */
+    if (s.state === "ok" && /^(generate|mockup)$/.test(job.kind)) {
+      const th = document.createElement("img");
+      th.className = "thumb";
+      th.src = masterURL(s.name, job.startedAt || 1);
+      th.alt = s.name;
+      th.loading = "lazy";
+      th.onerror = () => th.remove();
+      th.onclick = () => lightbox(th.src, s.name);
+      row.appendChild(th);
+    }
     c._items.appendChild(row);
   }
   /* auto-open while something is running, so progress is visible without a click */
@@ -202,6 +271,16 @@ function connect() {
         c._cnt.textContent = `${m.job.done}/${m.job.total} · ${Math.round(m.job.elapsed / 1000)}s`;
         if (m.job.status === "ok") { c.classList.remove("open"); c.querySelector(".act-toggle").textContent = "details"; }
       }
+      /* Show what was actually produced. Mockups get the full comparison strip
+         (Gate 39: side by side, same size, the user picks); an ordinary image
+         run gets a contact sheet so a bad asset is visible immediately instead
+         of surviving to the build. */
+      if (/^(generate|mockup)$/.test(m.job.kind) && m.job.status === "ok") {
+        const done = (m.steps || []).filter((s) => s.state === "ok").map((s) => s.name);
+        const mockups = done.filter((s) => /^_mockup/i.test(s)).sort();
+        const shown = mockups.length ? mockups : done;
+        if (shown.length) (body || turn("pf")).appendChild(mockupStrip(shown));
+      }
       if (m.job.kind === "deploy" && m.job.result?.url) {
         const live = el("div", "live");
         live.append(el("span", null, m.job.result.broken ? "Deployed, but assets are missing:" : "Live:"));
@@ -235,8 +314,74 @@ function connect() {
     if (stick) toBottom();
   };
   es.onerror = () => { $("#sub").textContent = "reconnecting…"; };
-  es.onopen = () => { if (!busy) $("#sub").textContent = "design pipeline"; };
+  es.onopen = () => { if (!busy) $("#sub").textContent = "design pipeline"; reconcileBusy(); };
 }
+
+/* ------------------------------------------------------------- history
+ * Replay the conversation on load. It used to live only in this page's DOM, so
+ * every refresh discarded it - and refreshing was the only way out of a latched
+ * composer, which made the workaround for one bug destroy the user's history.
+ * The server reads Claude Code's own JSONL, so this survives page reloads,
+ * server restarts and machine reboots alike.
+ */
+let historyLoaded = null;   // project whose history is already on screen
+
+async function loadHistory(force) {
+  if (!project) return;
+  if (historyLoaded === project && !force) return;
+  historyLoaded = project;
+  let data;
+  try { data = await api(`/api/history?project=${encodeURIComponent(project)}`); }
+  catch { return; }
+  if (!data || !data.turns || !data.turns.length) return;
+  if (project !== historyLoaded) return;    // project changed while we fetched
+
+  $(".welcome")?.remove();
+  inner.innerHTML = "";
+  for (const t of data.turns) {
+    const b = turn(t.role);
+    render(b, t.text);
+  }
+  const sep = el("div", "tool");
+  sep.append(el("b", null, "history"),
+    el("span", null, `${data.turns.length} earlier messages restored. Anything below is new.`));
+  inner.appendChild(sep);
+  body = null;
+  toBottom();
+}
+
+/* --------------------------------------------------------------- self-heal
+ * `busy` disables the Send button and was cleared ONLY by a chat:done event.
+ * Anything that stops those events arriving - a server restart, a killed job, a
+ * dropped SSE connection - left the composer permanently disabled with no way
+ * back except a page reload, and no on-screen explanation. The user could not
+ * send a message and the UI looked like it was still thinking.
+ *
+ * Events are a notification channel, never the source of truth. The server knows
+ * what is actually running, so ask it. */
+async function reconcileBusy() {
+  try {
+    const st = await api("/api/state");
+    const running = (st.jobs || []).some((j) => j.status === "running");
+    if (!running && busy) {
+      setBusy(false);
+      body?._think?.remove();
+      body?._prose?.querySelector(".caret")?.remove();
+      const n = el("div", "tool");
+      n.append(el("b", null, "note"),
+        el("span", null, "the previous turn ended without finishing (server restart or stopped job). Send a message to continue."));
+      (body || turn("pf")).appendChild(n);
+      body = null;
+    } else if (running && !busy) {
+      setBusy(true);          // reattach to work that started elsewhere
+    }
+  } catch {}
+}
+
+/* Belt and braces: SSE can stay open while the server behind it has gone away,
+   in which case onopen never fires again. A slow poll costs nothing and is the
+   difference between a stuck UI and one that recovers by itself. */
+setInterval(reconcileBusy, 15000);
 
 /* ------------------------------------------------------------------ state */
 async function refresh() {
@@ -255,7 +400,12 @@ async function refresh() {
   $("#mode").value = S.permissionMode || "auto";
   if (!inner.children.length) welcome();
 }
-$("#projSel").onchange = (e) => { project = e.target.value; localStorage.setItem("pd:project", project); inner.innerHTML = ""; welcome(); };
+$("#projSel").onchange = (e) => {
+  project = e.target.value; localStorage.setItem("pd:project", project);
+  inner.innerHTML = ""; historyLoaded = null; body = null;
+  welcome();
+  loadHistory();   // replaced by the real conversation if this project has one
+};
 
 async function ensureProject() {
   if (S.projects?.length) { project = S.projects[0].name; return; }
@@ -328,4 +478,4 @@ $("#btnTestKey").onclick = async (e) => {
   st.textContent = r.ok ? `valid: ${r.tenant?.id} (${r.tenant?.plan})` : `rejected: ${r.status || ""} ${r.detail || ""}`.trim();
 };
 
-refresh().then(connect);
+refresh().then(async () => { await loadHistory(); connect(); });

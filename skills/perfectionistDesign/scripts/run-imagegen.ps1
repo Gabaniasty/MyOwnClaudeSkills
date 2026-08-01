@@ -30,7 +30,12 @@ param(
   [string]$Root = ".",
   [string[]]$Slugs,
   [switch]$Strict,
-  [int]$Retries = 3
+  [int]$Retries = 3,
+  # Number of codex processes to run at once. 1 = the original sequential path.
+  # The bottleneck is OpenAI's generation latency inside `codex exec`, so the
+  # useful unit of parallelism is the codex process; nothing is gained by
+  # wrapping each image in an agent that then waits on the same call.
+  [int]$Parallel = 1
 )
 
 # codex writes to stderr; "Stop" would turn that into a fatal error mid-sequence.
@@ -118,6 +123,66 @@ function Invoke-Generation {
     return @{ ok = $false; reason = "unreadable image"; exit = $code }
   }
   return @{ ok = $true; size = $probe; kb = [int]((Get-Item $out).Length / 1KB); exit = $code }
+}
+
+# ---------------------------------------------------------------- fan out
+# When -Parallel > 1 this process becomes a supervisor: it splits the queue and
+# runs N copies of ITSELF, each sequential, then relays their output verbatim so
+# the dashboard's line parser keeps working unchanged (it keys every line by
+# slug name, so interleaving is harmless).
+#
+# GATE 27. Parallel generation is only sound because each worker recovers its
+# artefact from the codex SESSION directory ($GenRoot/$sid), which is an exact
+# mapping. The "newest png anywhere under CODEX_HOME" fallback further down is
+# explicitly annotated "ONLY sound when a single generation is in flight" - with
+# two workers running it would hand one slug the image the other just wrote:
+# right filename, wrong picture, no error anywhere. Workers are therefore forced
+# to -Strict, which disables that fallback. Never remove this.
+if ($Parallel -gt 1 -and $order.Count -gt 1) {
+  $workers = [Math]::Min($Parallel, $order.Count)
+  # Round-robin, not contiguous blocks: prompt cost varies a lot and contiguous
+  # chunks leave one worker holding all the slow ones.
+  $buckets = @{}
+  for ($i = 0; $i -lt $workers; $i++) { $buckets[$i] = @() }
+  for ($i = 0; $i -lt $order.Count; $i++) { $buckets[$i % $workers] += $order[$i] }
+
+  Write-Output "parallel: $workers workers over $($order.Count) slugs (strict mapping enforced)"
+
+  $jobs = @()
+  for ($i = 0; $i -lt $workers; $i++) {
+    if (-not $buckets[$i].Count) { continue }
+    $jobs += Start-Job -ScriptBlock {
+      param($scriptPath, $root, $slugList, $retries)
+      & powershell -NoProfile -ExecutionPolicy Bypass -File $scriptPath `
+          -Root $root -Slugs $slugList -Strict -Retries $retries -Parallel 1 2>&1
+    } -ArgumentList $PSCommandPath, $Proj, ($buckets[$i] -join ','), $Retries
+  }
+
+  # Relay as it arrives so progress stays live rather than arriving in one lump
+  # at the end.
+  while (@($jobs | Where-Object { $_.State -eq 'Running' }).Count -gt 0) {
+    foreach ($j in $jobs) { Receive-Job -Job $j | ForEach-Object { Write-Output $_ } }
+    Start-Sleep -Milliseconds 700
+  }
+  foreach ($j in $jobs) { Receive-Job -Job $j | ForEach-Object { Write-Output $_ } }
+  $jobs | Remove-Job -Force -ErrorAction SilentlyContinue
+
+  # Judge the run by what is ON DISK, not by worker exit codes (Gate 24: a
+  # non-zero exit is not evidence of a missing artefact).
+  $made = @(); $missing = @()
+  foreach ($slug in $order) {
+    if (Test-Path "$Masters/$slug.png") { $made += $slug } else { $missing += $slug }
+  }
+  Write-Output ""
+  Write-Output "==================== SUMMARY ===================="
+  Write-Output "generated: $($made.Count) / $($order.Count)"
+  if ($missing.Count) {
+    Write-Output "FAILED: $($missing -join ', ')"
+    foreach ($slug in $missing) { Write-Output "FAIL $slug  no file produced" }
+  }
+  Get-ChildItem $Masters -Filter *.png | Select-Object Name, @{n='KB';e={[int]($_.Length/1KB)}}
+  if ($missing.Count) { exit 1 }
+  exit 0
 }
 
 $done = @(); $failed = @()
