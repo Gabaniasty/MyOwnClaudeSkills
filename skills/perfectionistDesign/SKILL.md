@@ -70,8 +70,10 @@ block when you *enter* a phase, before doing the work.
 session that produced it, **four of its own rules were broken again by the agent that wrote
 them**: a gate you read at Phase 6 cannot prevent a mistake you make at Phase 3.
 
-The four checks that catch the most, in one line each:
+The five checks that catch the most, in one line each:
 
+0. **The interview** — never offer a menu of famous genres. The bar is that a visitor is
+   *surprised*; name a signature device that would look absurd on a competitor's site.
 1. **Analysing a mockup** — inventory every *element* (backgrounds, icons, dividers, badges),
    not just sections. Crop at full resolution.
 2. **Generating assets** — every small square asset is its own 1:1 image. Never a sheet.
@@ -215,14 +217,24 @@ This skill orchestrates; it does not duplicate. Pull these in at the right momen
 ### Loading is not applying. Prove it.
 
 Naming a skill in a sentence and then building on autopilot is the failure this section
-keeps having. Before you write markup, put **four lines** in your reply:
+keeps having. Before you write markup, put **six lines** in your reply:
 
 ```
-Design read : <page kind> for <audience>, <vibe> language, leaning <aesthetic family>
-Dials       : VARIANCE n / MOTION n / DENSITY n
-Skills      : <the ones you loaded, and the one-line reason for each>
-Rejected    : <the default you deliberately did NOT reach for, and what you did instead>
+Design read      : <page kind> for <audience>, <vibe> language
+Signature device : <the one thing that would look absurd on a competitor's site>
+Category default : <what every other site in this category does> -> <what I did instead>
+Dials            : VARIANCE n / MOTION n / DENSITY n
+Skills           : <the ones you loaded, and the one-line reason for each>
+Rejected         : <the default you deliberately did NOT reach for, and what you did instead>
 ```
+
+**`Signature device` and `Category default` are Gate 38, and they are the two that matter
+most.** The bar on every project here is that a visitor is *surprised* — competent and
+familiar is the failure, not the safe choice. A recognisable genre executed faithfully
+(editorial, Swiss, brutalist, punk, glassmorphism, minimal, premium-consumer) is never an
+acceptable answer to `Design read`; genres are vocabulary for discussing design, not the
+design. If the device is decoration rather than something load-bearing that comes out of
+what the subject actually *does*, go back to `references/11-taste.md` §1.5.
 
 The **Rejected** line is the one that does the work. "I did not use a centred hero over a
 dark gradient; the brief is a strength gym, so the hero is a full-bleed photograph with the
@@ -364,6 +376,7 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] **Gate 35** every duplicated control exercised from EACH instance; state asserted on all of them
 - [ ] **Gate 36** live host warmed before the sweep; every non-200 retried; served bytes == built bytes
 - [ ] **Gate 37** push was a fast-forward; `ls-remote` == local HEAD; no `--force` anywhere
+- [ ] **Gate 38** signature device named and load-bearing; swap-the-logo test on the MOCKUP returns "now looks wrong"
 - [ ] 0 broken images, 0 console errors, 0 stranded reveals
 - [ ] 0 horizontal overflow at 375 / 768 / 1024 / 1440 / 1920
 - [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
@@ -391,7 +404,7 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/04-build-standards.md` â€” design system, single-file architecture, JS patterns, traps
 - `references/05-verification-protocol.md` â€” the measurement scripts
 - `references/06-ship-deploy-git.md` â€” staging, deploy, live audit, git
-- `references/07-failure-gates.md` â€” **37 mechanical gates, every one from a defect that
+- `references/07-failure-gates.md` â€” **38 mechanical gates, every one from a defect that
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1;
   Gate 19 must be read at Phase 3, before a single image prompt is written, because a plate
   cut to the wrong aspect cannot be repaired in CSS afterwards.**

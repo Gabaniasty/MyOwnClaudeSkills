@@ -41,6 +41,63 @@ the original scored.
 
 ---
 
+## 1.5 THE BAR IS MEMORABLE, NOT COMPETENT
+
+**The standing instruction on every project built with this skill: someone landing on the
+page should be surprised.** Not "this is clean". Not "this is professional". Surprised —
+the way an award-shortlisted site surprises you in the first three seconds, because it did
+something you have not seen a hundred times already.
+
+That makes one whole category of answer forbidden: **a well-known genre, executed
+faithfully.** Editorial. Swiss. Brutalist. Punk. Glassmorphism. Neo-brutalist. Dark-tech.
+Premium-consumer beige. Every one of them is famous, which is precisely the problem — the
+visitor has seen it, so it cannot surprise them. A genre is a *vocabulary for discussing*
+the design (`10-reference-and-components.md` §3). It is never the design.
+
+> This skill used to instruct the opposite. `01-discovery-interview.md` said, in as many
+> words, *"offer named classes and let them choose"* and listed five genres. That produced
+> competent, familiar, forgettable pages, which is the one outcome the user has said
+> repeatedly they do not want. It is removed.
+
+### The three questions that produce a real direction
+
+Ask these of the *subject*, never of the style shelf:
+
+1. **What does this subject actually do that its competitors do not?**
+   The design idea is usually hiding in the operational truth. A roastery that roasts on
+   Monday and ships Wednesday has a *week* in it. A clinic with a 20-minute appointment has
+   a *clock* in it.
+2. **What is the one thing a visitor should be able to describe to someone else afterwards?**
+   If the only honest answer is "it was clean", there is no design yet.
+3. **What does every other site in this category look like?**
+   Name it explicitly, then move away from it and say what you did instead.
+
+### The signature device
+
+Every page ships **one device that would look absurd on a competitor's site.** Not
+decoration — something load-bearing that comes out of question 1. The scroll indicator is
+the round clock. The page dims as the article goes on. The dividers are real load diagrams.
+The palette tracks the roast.
+
+One is enough. Two is usually one too many, and it starts fighting the content.
+
+### The test
+
+> Could this page be re-labelled for a different business in the same category, with only
+> the logo and copy swapped, and still look right?
+
+If yes, it is a template and it fails. This is mechanical and it is **Gate 38**.
+
+### What this does NOT license
+
+Distinctive is not the same as unusable, and "award-winning" is not an excuse to break
+things. Every hard rule in this file still binds: contrast, reduced motion, all states,
+keyboard access, and the reveal contract (content never depends on animation). A device
+that strands content, fails AA, or hides the primary action is not bold, it is broken.
+Surprise the visitor with the *idea*, never by making the page harder to use.
+
+---
+
 ## 2. The defaults that mark output as generated
 
 Every one of these is what a model reaches for when it has not thought. Reaching for

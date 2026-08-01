@@ -71,9 +71,26 @@ Multi-select.
 into the design and the one thing that cannot be inferred from anything else. One named
 site relocates a project faster than a paragraph of adjectives.
 
-If they have none, do not fall back to "modern and clean". Offer **named classes** and let
-them choose (`10-reference-and-components.md` §3): developer-tool minimal, Swiss
-editorial, motion showcase, premium consumer, technical credibility.
+If they have none, do **not** fall back to "modern and clean" — and do **not** hand them a
+menu of named genres to pick from either. This file used to say *"offer named classes and
+let them choose: developer-tool minimal, Swiss editorial, motion showcase, premium
+consumer, technical credibility."* **That instruction was wrong and has been removed.**
+
+A genre menu guarantees a competent, familiar, forgettable page, because every option on
+it is a style the visitor has already seen a hundred times. The user's standing brief is
+the opposite: **every build should surprise the person who lands on it.** Naming a known
+genre and executing it faithfully is a failure, not a shortcut. See `11-taste.md` §1.5 and
+Gate 38.
+
+When they have no references, ask what makes the *subject* unlike its category instead:
+
+- *"What does this place/product do that the others in its category genuinely don't?"*
+- *"What should someone remember 10 seconds after closing the tab?"*
+- *"What do all your competitors' sites look like?"* — then treat that answer as the
+  thing to move away from, and say so out loud.
+
+Those three answers produce a direction nobody else in the category can reuse. A genre
+name produces one anybody could.
 
 Pair it with the negative, which people hold more strongly and state more precisely:
 *"Anything it must never look like?"* Capture verbatim.
@@ -88,12 +105,30 @@ Pair it with the negative, which people hold more strongly and state more precis
 Ask at most four. Drop any the brief settled.
 
 ### Q5. Aesthetic direction (header: `Direction`)
-Offer 3-4 *specific, named* directions fitted to the category, never generic adjectives.
-Bad: "modern / clean / bold". Good:
-- "Near-black + a single acid accent, condensed uppercase display" (gym, performance)
-- "Warm white, editorial serif, generous whitespace" (real estate, luxury)
-- "Dark champagne-gold, high-contrast serif/sans pairing" (hospitality)
-- "Ivory paper, Bodoni, handwritten annotations" (fashion agency)
+Offer 3-4 directions. Every one must be **invented for this subject** and must carry a
+signature device that would look absurd on a competitor's site. Never offer a genre name.
+
+Bad, because they are generic adjectives: "modern / clean / bold".
+
+**Also bad, and this is the trap this skill kept falling into** — recognisable genres
+wearing a colour palette. These are the ones to stop reaching for:
+- "Warm white, editorial serif, generous whitespace" (this is *Swiss editorial*, and it
+  is the single most over-produced look in AI design work)
+- "Ivory paper, Bodoni, handwritten annotations" (*fashion editorial*)
+- "Dark champagne-gold, high-contrast serif/sans" (*luxury hospitality*)
+Each describes a category, not a client. Swap the logo and it fits any of a thousand
+businesses, which is exactly why it will not be remembered.
+
+Good — each names a device that comes out of the subject itself:
+- A boxing gym whose entire page is laid out on the timing of a 3-minute round, with the
+  round clock as the scroll indicator
+- A coffee roastery where the page's colour temperature shifts from green to dark brown
+  as you scroll, tracking the roast
+- A structural engineer whose section dividers are real load diagrams from their projects
+- A sleep clinic that starts at full brightness and dims as you read, ending near-black
+
+Ask the user to react to these, not to rank genres. A strong negative reaction is still a
+useful answer; a shrug means all three were too safe and you should go again.
 
 ### Q6. Is this brand real or fictional? (header: `Brand`)
 - Fictional / portfolio piece

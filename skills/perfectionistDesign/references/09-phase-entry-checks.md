@@ -10,6 +10,40 @@ a phase, before doing the work.
 
 ---
 
+## Entering Phase 0 — the interview (Gate 38)
+
+**The standing brief is that a visitor should be SURPRISED.** Competent and familiar is the
+failure mode here, not the safe option. This block exists because the interview file itself
+used to instruct the opposite — it told you to offer a menu of five famous genres and let
+the user pick one, which is a guaranteed forgettable page.
+
+Before you ask anything:
+
+- [ ] You are **not** about to offer a genre menu. Editorial, Swiss, brutalist, punk,
+      glassmorphism, dark-tech, minimal, premium-consumer are **vocabulary for discussing**
+      design, never answers to "what should this look like".
+- [ ] If the user has no reference sites, you ask about the **subject** instead:
+      what it does that its competitors don't; what a visitor should still be able to
+      describe afterwards; what every other site in the category looks like.
+- [ ] Any direction you offer carries a **device that would look absurd on a competitor's
+      site**, and that device comes out of how the subject actually operates.
+
+Leaving Phase 0 you must be able to fill both lines. Empty means go back:
+
+```
+Signature device : <load-bearing, specific to this subject>
+Category default : <what everyone else does> -> <what I did instead>
+```
+
+> A colour palette is not a device. "Warm and premium" is not a device. "The scroll
+> indicator is the 3-minute round clock, because that is how the gym is organised" is.
+
+**And the limit:** distinctive never overrides contrast, reduced motion, all states,
+keyboard access, or the reveal contract. Surprise lives in the idea, not in a page that is
+harder to use.
+
+---
+
 ## Entering Phase 2 — analysing a mockup
 
 **Do not look for sections. Inventory every visual element.**

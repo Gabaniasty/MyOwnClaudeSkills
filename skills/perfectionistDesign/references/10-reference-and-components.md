@@ -73,10 +73,18 @@ cannot be derived. Ask for it explicitly, with AskUserQuestion, before designing
 decisions about type, colour, density and motion. Establish the class with the user, from
 their references or by offering options.
 
-Classes are a way of *talking*, not a list to pick from. Invent one if the project needs
-it, and say what it means concretely.
+**A class is a starting vocabulary, and it is NEVER the finished direction.** The list
+below exists so you and the user can say *"warmer than that, denser than that"* in one
+word. Shipping a faithful execution of any of them is a failure — they are all famous
+looks, and a visitor who has seen the genre before cannot be surprised by it.
 
-Examples of the shape a class takes:
+The standing brief on every project here is that the page should make someone stop.
+So: name the nearest class if it helps you talk, then state **what you are doing that the
+class would not**, and build that. If you cannot name the departure, you are building a
+template with a new logo on it. Gate 38 checks exactly this, and `11-taste.md` §1.5 gives
+the three questions that generate the departure.
+
+Examples of the shape a class takes (vocabulary, not a menu):
 - **Developer-tool minimal** - extreme type hierarchy, one accent, restrained motion,
   product UI as the hero image.
 - **Swiss editorial** - enormous type, hairline rules, asymmetric grid, near-zero
@@ -90,6 +98,11 @@ Examples of the shape a class takes:
 
 **Pick from the audience, never from taste.** A rescue service for founders who have
 already been burned needs credibility and calm. A festival needs the opposite.
+
+**Then break it, on purpose, in one place.** Credibility and calm still leaves room for a
+device nobody else in that category has — the calm is the ground, not the whole idea.
+Every page this skill ships should have one thing a visitor could describe to someone
+else afterwards. If the only honest description is the genre name, there is nothing there.
 
 ---
 

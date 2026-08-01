@@ -1511,6 +1511,67 @@ forced update (`+ dfe8caa...36940eb (forced update)`).
 
 ---
 
+## GATE 38 — A named genre is not a design direction
+
+**Phase 0 and Phase 1. Before a single mockup prompt is written.**
+
+The user's standing brief, stated more than once across sessions: a visitor should be
+**surprised**. Competent and familiar is the failure mode, not the safe option.
+
+This skill actively worked against that. `01-discovery-interview.md` instructed:
+
+> *"Offer **named classes** and let them choose: developer-tool minimal, Swiss editorial,
+> motion showcase, premium consumer, technical credibility."*
+
+Every option there is a famous look. Handing the user that menu guarantees the one outcome
+they have said they do not want, and it did — the instruction survived several sessions of
+"make the skill better" because nobody was checking the *interview*, only the build.
+
+**Forbidden as a design direction:** editorial, Swiss, brutalist, neo-brutalist, punk,
+glassmorphism, dark-tech, minimal, premium-consumer, luxury-hospitality, or any other
+recognisable genre executed faithfully. They are vocabulary for *talking* about design
+(`10-reference-and-components.md` §3), never the design itself.
+
+### The check
+
+The Phase 0 preamble gains two lines, and both must be non-empty before Phase 1 starts:
+
+```
+Signature device : <the one thing that would look absurd on a competitor's site>
+Category default : <what every other site in this category does> -> <what I did instead>
+```
+
+`Signature device` must be **load-bearing and derived from what the subject actually
+does**, not decoration. "Warm palette" is not a device. "The scroll indicator is the
+3-minute round clock, because that is how the gym is organised" is.
+
+### The pass condition, and it is mechanical
+
+> Take the finished mockup or page. Swap the logo and the copy for a different business in
+> the same category. Does it still look right?
+
+- **Still looks right → FAIL.** It is a template. Go back to `11-taste.md` §1.5.
+- **Now looks wrong → PASS.** The design is carrying something specific to this subject.
+
+Run it on the **mockup**, at Phase 2, before any build work. A generic mockup cannot be
+rescued in CSS, and by Phase 5 the cost of finding out is a whole build.
+
+### The tell in your own prompt
+
+Grep the mockup prompt you are about to send. If the aesthetic is described **entirely** in
+adjectives and genre names, with no sentence that could only be true of this one subject,
+the mockup will come back generic. Add the device to the prompt explicitly and describe how
+it appears on screen.
+
+### The limit
+
+Distinctive is not licence to break the page. Contrast, reduced motion, all states,
+keyboard access and the reveal contract still bind. A device that strands content or hides
+the primary action fails Gates 1, 2 and 23 regardless of how striking it is. **The surprise
+is in the idea, never in making the page harder to use.**
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the
