@@ -21,8 +21,10 @@ const TOOLS = [
      mockup at all, and the skill's own "Phase 1 is never skippable" could not be
      obeyed. A missing tool is a silently skipped phase. */
   { name: "generate_mockup",
-    description: "PHASE 1, ALWAYS FIRST on any new page or redesign. Write the full-page mockup prompt to scratch/prompts/_mockup.txt, then call this. It renders one tall image of the WHOLE page — every section, in order — using the user's ChatGPT login. When it finishes, READ images/_masters/_mockup.png with the Read tool and extract the design system from it: palette, type scale, section order, composition. Do not write markup or image prompts before you have looked at it.",
-    inputSchema: { type: "object", properties: {} }, kind: "mockup" },
+    description: "PHASE 1, ALWAYS FIRST on any new page or redesign. GATE 39: generate AT LEAST TWO different mockups and let the USER choose - never one, and never pick for them. Write scratch/prompts/_mockup_a.txt and _mockup_b.txt (add _mockup_c when the layout carries money, there are 8+ sections, you have only a feeling and no reference, or you are unsure - unsure means go UP, never down to one), each describing the WHOLE page top to bottom, every section in order. Then call this once; it renders every _mockup*.txt it finds, or just the slugs you pass in `only`. The variants must be different STAGINGS OF THE SAME SIGNATURE DEVICE, never different genres, varying ONE axis with section list, copy and palette held identical. When it finishes, READ each images/_masters/_mockup_*.png with the Read tool, SHOW them all to the user with one line each on what it does well and what it costs, give a recommendation labelled as a recommendation, ASK WHICH TO BUILD, AND STOP. Only after they choose do you extract the design system from the chosen one. Generate a single mockup ONLY when the user supplied a reference image of the NEW design or explicitly asked for one.",
+    inputSchema: { type: "object", properties: {
+      only: { type: "array", items: { type: "string" }, description: "optional mockup slugs, e.g. [\"_mockup_a\",\"_mockup_b\"]. Omit to render every _mockup*.txt in scratch/prompts." } } },
+    kind: "mockup" },
   { name: "generate_images",
     description: "Generate every image whose prompt file exists in scratch/prompts, using the user's ChatGPT login via Codex. Shows live per-asset progress in the chat. Pass `only` to regenerate specific slugs. Write the prompt .txt files FIRST.",
     inputSchema: { type: "object", properties: {

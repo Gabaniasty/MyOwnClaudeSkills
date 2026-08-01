@@ -1615,6 +1615,54 @@ chosen one, then graft **one** named idea from a loser and say what you took.
 
 ---
 
+## GATE 40 — A rule that lives in two places is already stale in one of them
+
+**Any time you change a rule. Verify at the surface that EXECUTES it, not the file you edited.**
+
+Gate 39 was written into `02-mockup-prompt.md`, `07-failure-gates.md`,
+`09-phase-entry-checks.md` and `SKILL.md`. All four correct. Then a live prompt was sent
+through the dashboard and the agent answered:
+
+> *"The skill requires exactly one mockup per new website. There is no 'choose between
+> them' step; you don't pick from options."*
+
+Confidently, and completely wrong. The dashboard builds its own `--append-system-prompt`
+that **restates the pipeline in its own words**, and that copy still said *"write
+scratch/prompts/_mockup.txt … then call generate_mockup"* — singular, one file, one image.
+The agent obeyed the copy in front of it, which is the correct thing for it to do.
+
+Three places held the same rule and only one was updated:
+
+| Surface | Held | Was updated |
+|---|---|---|
+| `references/*.md` | the real rule | yes |
+| dashboard `SYSTEM` prompt | a paraphrase of the pipeline | **no** |
+| MCP tool `description` | a paraphrase of the same pipeline | **no** |
+| dashboard job plumbing | `["_mockup"]` hardcoded, `s !== "_mockup"` filter | **no** |
+
+The plumbing is the quiet one: even with both prompts fixed, `jobGenerate(path,
+["_mockup"])` would have rendered **neither** `_mockup_a` nor `_mockup_b`, and the
+sweep filter `s !== "_mockup"` would have let both variants through into the shipped
+image set.
+
+**The check, and it is not optional after a rule change:**
+
+```
+1. grep every surface for the OLD rule, not just the file you edited:
+     references/  SKILL.md  dashboard/server.mjs  dashboard/mcp/*.mjs  scripts/
+2. ask the running system, in its own words, what the rule is
+3. compare its answer to the rule you wrote
+```
+
+Step 2 is the one that catches it. A file diff cannot: every file you looked at was right.
+
+**Prefer one source over synchronised copies.** Where a paraphrase genuinely has to exist
+(an MCP tool description the model reads before it can open a file), keep it to the
+*trigger* and point at the reference for the substance — a short pointer goes stale far
+less often than a restated rule.
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the

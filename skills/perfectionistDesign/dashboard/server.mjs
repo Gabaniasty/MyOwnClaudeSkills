@@ -149,10 +149,13 @@ async function jobGenerate(projectPath, only) {
     slugs = (await readdir(promptsDir)).filter((f) => f.endsWith(".txt")).map((f) => f.replace(/\.txt$/, ""));
   } catch {}
   if (only?.length) slugs = slugs.filter((s) => only.includes(s));
-  /* _mockup is a DESIGN INPUT, not a shipped asset. It must never be swept up by a
-     plain "generate everything" run, or it lands in images/ and the reference
-     audit reports it as unused. */
-  else slugs = slugs.filter((s) => s !== "_mockup");
+  /* Mockups are a DESIGN INPUT, not a shipped asset. They must never be swept up by
+     a plain "generate everything" run, or they land in images/ and the reference
+     audit reports them as unused.
+     Prefix match, not equality: Gate 39 means there are now _mockup_a, _mockup_b and
+     sometimes _mockup_c. Matching only the exact string "_mockup" would have let
+     every variant through into the shipped image set. */
+  else slugs = slugs.filter((s) => !s.startsWith("_mockup"));
   if (!slugs.length) throw new Error("no prompt files in scratch/prompts");
 
   const job = newJob("generate", basename(projectPath), slugs.map((s) => ({ name: s, state: "pending" })));
@@ -402,10 +405,18 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "the design read genuinely lands there.",
     "",
     "Before you write any markup, post exactly four lines:",
-    "  Design read : <page kind> for <audience>, <vibe>, leaning <aesthetic family>",
-    "  Dials       : VARIANCE n / MOTION n / DENSITY n",
-    "  Skills      : <loaded, with a reason each>",
-    "  Rejected    : <the default you did NOT reach for, and what you did instead>",
+    "  Design read      : <page kind> for <audience>, <vibe>",
+    "  Signature device : <the one thing that would look absurd on a competitor's site>",
+    "  Category default : <what every other site in this category does> -> <what I did>",
+    "  Dials            : VARIANCE n / MOTION n / DENSITY n",
+    "  Skills           : <loaded, with a reason each>",
+    "  Rejected         : <the default you did NOT reach for, and what you did instead>",
+    "Signature device and Category default are Gate 38 and they matter most. The bar is that",
+    "a visitor is SURPRISED. A recognisable genre executed faithfully (editorial, Swiss,",
+    "brutalist, punk, glassmorphism, minimal, premium-consumer) is NEVER an acceptable",
+    "direction - genres are vocabulary for discussing design, not the design. Never offer",
+    "the user a menu of genres to pick from. The device must be load-bearing and come from",
+    "what the subject actually DOES, not decoration.",
     "The Rejected line is the one that matters. Silence there means the defaults won.",
     "",
     "\"The gates\" always means that skill's mechanical checks, run through your run_gates",
@@ -413,9 +424,21 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "",
     "THE ORDER IS NOT NEGOTIABLE. Mockup, then analysis, then images, then build:",
     "  1. Interview. Wait for answers.",
-    "  2. PHASE 1 — write scratch/prompts/_mockup.txt describing the WHOLE page, top to",
-    "     bottom, every section in order, then call mcp__pipeline__generate_mockup.",
-    "  3. PHASE 2 — READ images/_masters/_mockup.png with the Read tool. Extract the design",
+    "  2. PHASE 1 — AT LEAST TWO MOCKUPS, AND THE USER PICKS (Gate 39). Write",
+    "     scratch/prompts/_mockup_a.txt AND _mockup_b.txt (add _mockup_c for a",
+    "     high-stakes page: the layout carries money, 8+ sections, only a feeling and no",
+    "     reference, or you are unsure - unsure means go UP, never down to one). Each",
+    "     describes the WHOLE page top to bottom, every section in order. Then call",
+    "     mcp__pipeline__generate_mockup once, with the list of slugs.",
+    "     The variants are different STAGINGS OF THE SAME SIGNATURE DEVICE, never",
+    "     different genres. Vary ONE axis; hold the section list, copy and palette",
+    "     identical. If you can only tell them apart with genre words, you built a menu",
+    "     instead of options - regenerate.",
+    "     Then SHOW the user every mockup, one line each on what it does well and what it",
+    "     costs, give a recommendation clearly labelled as a recommendation, ASK WHICH TO",
+    "     BUILD, AND STOP. Do not continue on your own pick. Generate ONE mockup only when",
+    "     the user supplied a reference image OF THE NEW DESIGN or explicitly asked for one.",
+    "  3. PHASE 2 — after the user chooses, READ that mockup with the Read tool. Extract the design",
     "     system FROM THE IMAGE: palette with hex values, type scale, section order and",
     "     composition. Say what you found. An image model makes a hundred composition",
     "     decisions neither of you would think to specify — that is the point of it.",
@@ -427,7 +450,7 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "Skipping straight to code is how a build becomes a template.",
     "",
     "You have pipeline tools, namespaced under mcp__pipeline__:",
-    "  mcp__pipeline__generate_mockup    PHASE 1, always first",
+    "  mcp__pipeline__generate_mockup    PHASE 1, always first, 2+ variants in ONE call",
     "  mcp__pipeline__generate_images   every prompt in scratch/prompts, live progress",
     "  mcp__pipeline__process_assets    masters to variants, srcsets, reference audit",
     "  mcp__pipeline__run_gates         the skill's mechanical checks",
@@ -838,7 +861,20 @@ const server = createServer(async (req, res) => {
       const projectPath = join(WORKSPACE, b.project);
       if (!existsSync(projectPath)) return json(res, 400, { error: "unknown project" });
       let job;
-      if (b.kind === "mockup") job = await jobGenerate(projectPath, ["_mockup"]);
+      /* Gate 39: 2+ variants. Honour an explicit slug list, otherwise render every
+         _mockup* prompt the agent wrote. Hardcoding ["_mockup"] here meant a call
+         that had just written _mockup_a and _mockup_b rendered NEITHER. */
+      if (b.kind === "mockup") {
+        let slugs = Array.isArray(b.only) && b.only.length ? b.only : null;
+        if (!slugs) {
+          let files = [];
+          try { files = await readdir(join(projectPath, "scratch", "prompts")); } catch {}
+          slugs = files.filter((f) => /^_mockup.*\.txt$/i.test(f)).map((f) => f.replace(/\.txt$/i, "")).sort();
+        }
+        if (!slugs.length) return json(res, 400, {
+          error: "no _mockup*.txt prompts found. Gate 39 wants at least two variants: write scratch/prompts/_mockup_a.txt and _mockup_b.txt first." });
+        job = await jobGenerate(projectPath, slugs);
+      }
       else if (b.kind === "generate") job = await jobGenerate(projectPath, b.only);
       else if (b.kind === "deploy") job = await jobDeploy(projectPath, {
         project: b.deployProject || b.project, app: b.app || b.project, port: b.port, mode: b.mode });
