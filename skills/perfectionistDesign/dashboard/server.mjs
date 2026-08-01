@@ -624,11 +624,36 @@ async function cliStatus() {
 }
 
 /* ------------------------------------------------------------------ projects */
+/* A project name arrives from a query string, goes straight into join(), and
+   the result is read off disk. Two things went wrong without this:
+     - `?project=` omitted entirely made join(WORKSPACE, null, ...) THROW, which
+       surfaced as a 500 "internal error" for what is plainly a bad request.
+     - `..` segments would have escaped the workspace on a server the user is
+       told to run locally but which binds a real port.
+   One folder segment, no separators, no dots-only names. */
+function safeProject(name) {
+  if (typeof name !== "string") return null;
+  const n = name.trim();
+  if (!n || n.length > 64) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(n)) return null;
+  if (/^\.+$/.test(n)) return null;
+  return n;
+}
+
+const NON_PROJECT_DIRS = new Set([
+  "node_modules", "dist", "build", "coverage", ".cache", "tmp", "temp",
+]);
+
 async function listProjects() {
   await mkdir(WORKSPACE, { recursive: true });
   const out = [];
   for (const e of await readdir(WORKSPACE, { withFileTypes: true })) {
     if (!e.isDirectory() || e.name.startsWith(".")) continue;
+    // Not every directory in the workspace is a project. `node_modules` gets
+    // created the moment anything npm-installs here, and `<name>-deploy` is the
+    // derived folder build-deploy.cjs writes (Gate 26) - offering either one in
+    // the project picker invites the agent to build INTO a build artefact.
+    if (NON_PROJECT_DIRS.has(e.name) || /-deploy$/.test(e.name)) continue;
     const p = join(WORKSPACE, e.name);
     const has = (f) => existsSync(join(p, f));
     let prompts = 0, masters = 0, variants = 0;
@@ -771,7 +796,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (p === "/api/prompts") {
-      const proj = url.searchParams.get("project");
+      const proj = safeProject(url.searchParams.get("project"));
+      if (!proj) return json(res, 400, { error: "missing or invalid ?project=" });
       const dir = join(WORKSPACE, proj, "scratch", "prompts");
       let files = [];
       try { files = await readdir(dir); } catch {}
@@ -793,7 +819,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (p === "/api/assets") {
-      const proj = url.searchParams.get("project");
+      const proj = safeProject(url.searchParams.get("project"));
+      if (!proj) return json(res, 400, { error: "missing or invalid ?project=" });
       const dir = join(WORKSPACE, proj, "images");
       let files = [];
       try { files = await readdir(dir); } catch {}

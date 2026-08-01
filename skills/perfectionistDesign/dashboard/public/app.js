@@ -260,7 +260,7 @@ function welcome() {
   const chips = el("div", "chips");
   for (const t of [
     "A landing page for a business-class airline. Premium, restrained, lots of whitespace.",
-    "Redesign example-client.com — keep the logo and the real customer names, everything else is open.",
+    "Redesign example-client.com, keep the logo and the real customer names, everything else is open.",
     "The work grid collides with the card above it at 1280. Measure it and fix it.",
   ]) {
     const c = el("button", "chip", t);
@@ -289,8 +289,8 @@ $("#btnDeploy").onclick = async () => {
 $("#btnSettings").onclick = async () => {
   await refresh();
   $("#inWs").value = S.workspace;
-  $("#inKey").value = ""; $("#inKey").placeholder = S.breezeKeySet ? `saved — ${S.breezeKeyMasked}` : "hk_… your own key";
-  $("#inAnthropic").value = ""; $("#inAnthropic").placeholder = S.anthropicKeySet ? `saved — ${S.anthropicKeyMasked}` : "sk-ant-…";
+  $("#inKey").value = ""; $("#inKey").placeholder = S.breezeKeySet ? `saved: ${S.breezeKeyMasked}` : "hk_… your own key";
+  $("#inAnthropic").value = ""; $("#inAnthropic").placeholder = S.anthropicKeySet ? `saved: ${S.anthropicKeyMasked}` : "sk-ant-…";
   $("#selClaudeAuth").value = S.claudeAuth; $("#selImageAuth").value = S.imageAuth;
   $("#inModel").value = S.model || "";
   const c = $("#cliState"); c.innerHTML = "";
@@ -313,7 +313,7 @@ $("#btnTestKey").onclick = async (e) => {
   if ($("#inKey").value) await api("/api/settings", { method: "POST", body: JSON.stringify({ breezeKey: $("#inKey").value }) });
   const r = await api("/api/settings/test", { method: "POST", body: "{}" });
   st.className = "pill " + (r.ok ? "ok" : "bad");
-  st.textContent = r.ok ? `valid — ${r.tenant?.id} (${r.tenant?.plan})` : `rejected — ${r.status || ""} ${r.detail || ""}`.trim();
+  st.textContent = r.ok ? `valid: ${r.tenant?.id} (${r.tenant?.plan})` : `rejected: ${r.status || ""} ${r.detail || ""}`.trim();
 };
 
 refresh().then(connect);
