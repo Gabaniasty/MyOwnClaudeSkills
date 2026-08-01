@@ -18,18 +18,48 @@ Before diagnosing any behavioural bug, establish whether the mechanism can run h
 Seven times in one session a frozen harness was misread as broken code.
 
 ```js
-(() => ({
-  documentHidden: document.hidden,
-  scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
-  verdict: document.hidden
-    ? 'FROZEN: rAF, smooth scroll, CSS transitions, :focus and screenshots are all unreliable. Defeat the artifact before concluding anything.'
-    : 'live'
-}))()
+(() => {
+  let scrollEvents = 0;
+  addEventListener('scroll', () => scrollEvents++, { passive: true });
+  const y = scrollY;
+  scrollTo(0, y + 200);
+  return new Promise(r => setTimeout(() => {
+    scrollTo(0, y);
+    r({
+      documentHidden: document.hidden,
+      visibilityState: document.visibilityState,
+      scrollEventsFromScriptedScroll: scrollEvents,   // 0 means scrollTo() is silent here
+      scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
+      verdict: document.hidden
+        ? 'FROZEN: rAF, IntersectionObserver, CSS transitions, :focus and screenshots are all unreliable.'
+        : (scrollEvents === 0 ? 'LIVE but scripted scroll does not dispatch — dispatch the event yourself' : 'live')
+    });
+  }, 400));
+})()
 ```
 
 If `documentHidden` is true, apply the workarounds in `07-failure-gates.md` Gate 2 **before**
 editing any code. If defeating the artifact makes the symptom disappear, there was no bug —
 say so instead of shipping a fix.
+
+**Four specific misreads, all from one frozen tab, all of which looked exactly like real bugs:**
+
+| symptom | what it actually was |
+|---|---|
+| `body.dataset.nav === 'top'` at `scrollY: 9000` | rAF and IntersectionObserver both paused — no callback ever ran |
+| a correctly-hidden element reporting `opacity: 1` | **transitions do not advance in a hidden tab**, so transitioned properties read their START value forever. Untransitioned properties on the same rule applied instantly — that split is the tell |
+| screenshot showing the old UI after the DOM had already changed | the capture returned a stale composited frame |
+| a probe listener counting **0** scroll events after `scrollTo(0, 900)` moved the page | scripted scroll does not always dispatch; a real gesture did |
+
+The `opacity: 1` / `pointer-events: none` split is worth memorising: **when two properties
+in the same rule disagree, and exactly the transitioned one is stale, the tab is frozen —
+the CSS is fine.** Inject a transition-kill sheet and re-measure before touching anything:
+
+```js
+const kill = document.createElement('style');
+kill.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}';
+document.head.appendChild(kill);
+```
 
 ## 0.5 Child-overflow sweep — the single highest-value check
 
@@ -93,6 +123,78 @@ console.log("unreferenced:", unreferenced.length);
 
 Both `missing` and `unreferenced` should be 0 — unreferenced files mean either dead weight
 or a slot you forgot to wire.
+
+---
+
+## 2.4 MEASURE ON A FRESH LOAD, NEVER AFTER A RESIZE
+
+Two numbers are wrong if you resize the window and re-measure without reloading:
+
+**`srcset` selection.** A page loaded at 1440 picks the 900w variant. Resize to 1920 and
+the browser frequently keeps it — it has a decoded image and does not re-run the
+selection. Measuring then reports `upscaling: 1.24` and a Gate 19 failure that does not
+exist. A fresh load at 1920 picked the 1400w variant and `upscaling: 0.93`.
+
+**Anything driven by a scroll handler or an IntersectionObserver** that has already fired.
+
+```
+resize  ->  RELOAD  ->  measure
+```
+
+Never `resize -> measure`. If a number looks wrong after a resize, reload before you
+believe it, and certainly before you "fix" it.
+
+---
+
+## 2.42 NEVER MEASURE ANIMATED STATE MID-FLIGHT
+
+A reveal audit reported **18 of 19 elements stranded at `opacity: 0`** on a page that was
+entirely fine. The elements even carried their `.is-in` class, which made it look like a
+CSS specificity bug — the conclusion was one edit away from "fixing" correct code.
+
+The cause: the check scrolled the whole page in 400ms steps to trigger every observer,
+then immediately read `getComputedStyle`. The 700ms fades were still running.
+`getComputedStyle` during a transition returns the **interpolated** value, so a reveal
+that is working perfectly reads as `0`.
+
+```js
+// WRONG — reads the middle of the animation
+scrollThroughPage(); measureOpacity();
+
+// RIGHT — settle, defeat, then measure
+scrollThroughPage();
+await wait(longestTransition + 300);
+injectStyle('*{transition:none!important;animation:none!important}');
+measureOpacity();
+```
+
+**The rule: any check that reads `opacity`, `transform`, `height` or position must either
+wait out the longest transition on the page or kill transitions first.** The contrast pass
+in `audit.browser.js` already injects that kill-switch; the reveal check did not, and that
+inconsistency is what produced the false alarm.
+
+And run **Gate 2's discriminator** before believing any frozen-looking state: set
+`el.style.transition = 'none'` and re-read. If the value jumps to its final state, the CSS
+is correct and you were measuring the animation.
+
+> This was the third false alarm from this file's own instruments in one session — after
+> the theme-flip ordering bug and the white-fallback ground bug. **The harness is the most
+> likely thing to be wrong, not the page.**
+
+---
+
+## 2.45 SAMPLING PIXELS: never use a corner as the reference colour
+
+A check written to find "how much empty space is above the subject in this photograph"
+sampled pixel (0,0) as the background, then walked down looking for the first row that
+differed. It returned **0%** on an image with obvious headroom, because the top row
+carries a gradient and some of its own pixels already differ from its corner by more than
+the threshold.
+
+If you need a reference colour, take the **median of a strip**, not one pixel, and require
+a run of consecutive differing rows before declaring content. Better still: for "is there
+dead space", measure the *rendered geometry* (Gate 29) rather than the image content —
+geometry is exact and pixels are a guess.
 
 ---
 

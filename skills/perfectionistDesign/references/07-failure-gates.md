@@ -1098,15 +1098,81 @@ horizontal scroll the author was trying to design.
 `overflow-x: hidden` on `body` does **not** fix it: the document still reports the
 overflow, and on some engines the scrollbar still appears.
 
-**The fix, on the root:**
+**The fix — on BODY, never on `<html>`:**
 
 ```css
-html { overflow-x: clip; }     /* NOT hidden */
+body { overflow-x: clip; }     /* NOT html, and NOT hidden */
 ```
 
-`clip` contains the overshoot without making `<html>` a scroll container. `hidden` makes
-it one, and that silently breaks every `position: sticky` on the page — a much worse bug
-than the one being fixed.
+> **This gate said `html { overflow-x: clip }` when it was first written, and that was
+> wrong.** Shipping it broke the sticky nav on the very next build: the cart button
+> scrolled off the top of a phone screen and became unreachable. The advice that `clip`
+> is safe on the root because only `hidden` creates a scroll container does not hold —
+> `clip` makes the root a *clip container*, which kills `position: sticky` for every
+> descendant just as thoroughly.
+
+Measured, all three combinations, scrolled to 2000px:
+
+| | nav sticky | overflow |
+|---|---|---|
+| `html { overflow-x: clip }` | **false** | 0 |
+| `body { overflow-x: clip }` | true | 0 |
+| neither | true | 0 |
+
+`body` works because `<html>` remains the scroll container. And do not leave a second
+`overflow-x: hidden` on `body` elsewhere in the sheet — that reintroduces the same bug
+from the other direction.
+
+### `clip` is the belt. It is NOT the fix. — corrected a second time
+
+The table above was measured on a page whose bleed happened to land inside the clip, and
+it made `body { overflow-x: clip }` look sufficient. **It is not.** On the next build the
+same page still measured **8px of overflow at 768 and 1440 with `clip` already applied**,
+because `overflow` set on `body` while `<html>` is `visible` is *propagated to the
+viewport* — body itself computes to `visible` and clips nothing. You cannot rely on it to
+absorb a bleed that is genuinely too wide.
+
+**Stop deriving the bleed from `100vw` at all.** Stamp the real layout width once and use
+it everywhere:
+
+```css
+:root {
+  --sbw:  0px;                          /* stamped by JS; 0 is a safe no-JS default */
+  --vw:   calc(100vw - var(--sbw));     /* the LAYOUT viewport */
+  --page: min(1280px, calc(var(--vw) - 48px));
+}
+.bleed { margin-right: calc(-1 * (var(--vw) - var(--page)) / 2); }
+```
+
+```js
+var w = window.innerWidth - document.documentElement.clientWidth;
+document.documentElement.style.setProperty('--sbw', (w > 0 ? w : 0) + 'px');
+```
+
+**And see Gate 32 before you write that script — stamping it once from `<head>` reports 0
+on every load and quietly reinstates the bug you just fixed.**
+
+Verify by arithmetic, not just by the aggregate. At 768 with a 15px scrollbar the numbers
+have to close exactly:
+
+| | broken (`--sbw` = 0) | fixed (`--sbw` = 15) |
+|---|---|---|
+| layout width | 753 | 753 |
+| `--page` | 736 | 721 |
+| centred gutter | 8.5 | 16 |
+| bleed offset | −16 | −16 |
+| right edge | 760.5 | 753 |
+| **overflow** | **8** | **0** |
+
+If the aggregate says 0 but you cannot make the arithmetic close, you are measuring a
+viewport where the scrollbar happens to be absent.
+
+**Always verify BOTH properties together**, because fixing one breaks the other:
+
+```js
+{ overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,  // 0
+  sticky:  (window.scrollTo(0,2000), Math.round(nav.getBoundingClientRect().top)) }       // 0
+```
 
 **Pass condition:**
 
@@ -1130,6 +1196,217 @@ heroTop + heroPaddingTop - headerHeight   // the blank band, in px
 If the mockup's first content sits close under the nav and yours does not, the padding is
 wrong. This is Gate 5's rule in a new place: **the mockup is the spec for spacing, not
 just for colour.**
+
+---
+
+## GATE 32 — Anything measured from `<head>` is measured on an empty document
+
+**Phase 5, for every value stamped into CSS by script.**
+
+The Gate 31 fix was written correctly and still shipped broken, because the stamping
+script lived in `<head>`:
+
+```js
+// runs before <body> exists → the document has no height → no vertical scrollbar
+var w = window.innerWidth - document.documentElement.clientWidth;   // ALWAYS 0
+```
+
+It read `0` on every single load. The `--sbw` variable existed, the arithmetic that used
+it was right, and the overflow came straight back. It measured clean once — on a viewport
+that had been *resized* after load, which fired the resize listener and stamped the real
+value. **A resize is not a load.** The pass came from the one path that could not occur
+for a real visitor.
+
+This is the general trap: `clientWidth`, `scrollHeight`, `getBoundingClientRect`,
+`matchMedia` on content-dependent queries, and font metrics are all meaningless in `<head>`.
+
+**Stamp early for first paint if you must, then re-stamp when the value can be real, and
+keep watching:**
+
+```js
+set();                                                    // first paint, may be wrong
+document.addEventListener('DOMContentLoaded', set);
+window.addEventListener('load', set);                     // after images settle layout
+window.addEventListener('resize', set, { passive: true });
+if ('ResizeObserver' in window) new ResizeObserver(set).observe(document.documentElement);
+```
+
+The ResizeObserver is not belt-and-braces. A scrollbar appears and disappears from things
+`resize` never fires for: a modal locking scroll, lazy images landing, content collapsing.
+
+**Pass condition — assert on a FRESH LOAD, never after a resize:**
+
+```js
+// reload first, then:
+getComputedStyle(document.documentElement).getPropertyValue('--sbw')  // '15px', not '0px'
+document.documentElement.scrollWidth - document.documentElement.clientWidth   // 0
+```
+
+---
+
+## GATE 33 — Resolve colours through a canvas, never through a regex
+
+**Phase 6, before reporting a single contrast number.**
+
+Three separate contrast audits in this skill's history reported large numbers of failures
+that did not exist, all from the same cause: a hand-written `parseColor` that special-cased
+the syntaxes its author thought of.
+
+| what the browser returned | what the parser did | phantom failures |
+|---|---|---|
+| `color(srgb 0.95 0.94 0.92)` | read 0-1 floats as 0-255 → near-black | 18 |
+| `oklab(0.953803 0.00216 0.01177 / 0.92)` | matched no branch, first 3 numbers as RGB | 28 |
+| `rgba(0,0,0,0)` on a translucent ground | fell back to white | 31 |
+
+The third one is the dangerous shape: legible dark-on-paper nav text measured **1.21:1**,
+and the report read as a serious accessibility failure. Acting on it would have darkened
+text that was already correct.
+
+Modern engines return `oklab()`, `oklch()`, `color()`, `lab()`, `color-mix()` results and
+relative-colour syntax from `getComputedStyle`. You will not keep up with a regex.
+
+**Let the browser do the conversion. It already has a complete parser:**
+
+```js
+const _cc = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+function parseColor(s) {
+  const t = String(s || "").trim();
+  if (!t || t === "none" || t === "transparent") return null;
+  let alpha = 1;
+  const slash = t.match(/\/\s*([\d.]+%?)\s*\)/);
+  if (slash) alpha = slash[1].endsWith("%") ? parseFloat(slash[1]) / 100 : parseFloat(slash[1]);
+  else if (/^rgba?\(/i.test(t)) { const n = t.match(/-?[\d.]+/g) || []; if (n.length > 3) alpha = parseFloat(n[3]); }
+  _cc.fillStyle = "#000";
+  _cc.fillStyle = t;                       // invalid values leave it at #000
+  _cc.fillRect(0, 0, 1, 1);
+  const d = _cc.getImageData(0, 0, 1, 1).data;
+  return [d[0], d[1], d[2], alpha];        // always sRGB 0-255
+}
+```
+
+Cache by string — a full-page sweep asks for the same twenty colours hundreds of times.
+
+**Pass condition, run BEFORE trusting any failure list:**
+
+```js
+["#8A7F70", "rgb(138,127,112)", "oklab(0.95 0.002 0.012 / 0.92)", "color(srgb 0.95 0.94 0.92)",
+ "color-mix(in oklab, #A8412A 8%, transparent)"].map(parseColor)
+// every entry non-null, every channel 0-255, none silently [0,0,0]
+```
+
+If a contrast run reports failures on text you can plainly read in a screenshot, **the
+parser is the suspect, not the page.** This is Gate 24 with a specific culprit.
+
+---
+
+## GATE 34 — A hidden tab does not composite, so transitions never finish
+
+**Phase 6. This produced four separate wrong conclusions in one session.**
+
+When the automation tab is not fronted, `document.visibilityState === "hidden"` and the
+rendering pipeline is paused. Everything that depends on a frame silently stops:
+
+| what stops | how it misreads |
+|---|---|
+| CSS transitions | transitioned properties read their **start** value forever |
+| `requestAnimationFrame` | callbacks never run — see the latch below |
+| `IntersectionObserver` | entries never deliver → "the observer is broken" |
+| `computer{screenshot}` | returns a **stale composited frame**, not current state |
+
+Concretely, all four in one build: a scroll-driven nav reported `flag: "top"` at
+`scrollY: 9000`; a FAB that was correctly hidden reported `opacity: 1`; and a screenshot
+showed the navbar still on screen *after* the DOM attribute had already flipped to
+`retracted`. Every one of them was the harness. The page was correct throughout.
+
+**Separate the two halves before concluding anything:**
+
+1. **Does the CSS produce the right result?** Set the state attribute by hand, inject a
+   transition-kill sheet, measure every combination:
+   ```js
+   const kill = document.createElement('style');
+   kill.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}';
+   document.head.appendChild(kill);
+   for (const [nav, overlay] of [['top','closed'],['retracted','closed'],['retracted','open']]) { ... }
+   ```
+2. **Does the driver fire?** Only a **real gesture** proves this. `window.scrollTo()` called
+   from an injected eval context does not dispatch a `scroll` event in every harness —
+   a probe listener counted **0** events after `scrollTo(0, 900)` moved the page. Either
+   drive a real scroll, or `window.dispatchEvent(new Event('scroll'))` explicitly, and
+   front the tab first.
+
+**Never report "the JS doesn't work" from a background tab.** Front it, or test the halves
+separately.
+
+### The latch this exposes — do not gate state on a rAF flag
+
+```js
+let queued = false;
+addEventListener('scroll', () => {                  // BROKEN
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(sync);                      // clears `queued` — inside the frame
+});
+```
+
+In a tab that never paints, the frame never arrives, `queued` is never cleared, and the
+component is stuck in whatever state it last held. It is not only a test artefact: a
+backgrounded or restored tab hits it for real. Either do the work inline (a guarded
+attribute write is cheap), or clear the guard outside the callback.
+
+```js
+function setNavState(retracted) {
+  const next = retracted ? 'retracted' : 'top';
+  if (document.body.dataset.nav !== next) document.body.dataset.nav = next;  // no latch
+}
+new IntersectionObserver(e => setNavState(!e[e.length-1].isIntersecting)).observe(sentinel);
+addEventListener('scroll', () => setNavState(scrollY > 130), { passive: true });
+```
+
+---
+
+## GATE 35 — The moment a control gains a second instance, every write must target the SET
+
+**Phase 5, whenever a component appears in more than one place.**
+
+A cart badge lived at `getElementById('cart-badge')`. A second cart button was added for
+mobile, carrying its own badge. Every `renderBadge()` call kept updating exactly one of
+them — the mobile badge sat at `0` while the bag held four items.
+
+This passes every per-element check ever written. The element exists, it is visible, it has
+the right styles. It is simply never written to.
+
+```js
+const badges = document.querySelectorAll('[data-cart-badge]');   // the SET
+function renderBadge() {
+  const n = itemCount();
+  badges.forEach(b => { b.textContent = String(n); b.dataset.empty = n === 0 ? 'true' : 'false'; });
+}
+```
+
+Same rule for the handler — bind by attribute, not by id:
+
+```js
+document.querySelectorAll('[data-cart-open]').forEach(b => b.addEventListener('click', open));
+```
+
+**Pass condition — exercise from EACH instance, and assert on all of them:**
+
+```js
+document.querySelector('.cart-fab').click();                     // the new one, not the original
+[...document.querySelectorAll('[data-cart-badge]')].map(b => b.textContent)   // ['4','4']
+```
+
+This is Gate 4's "check the set, not each item" applied to behaviour instead of assets.
+Whenever you duplicate a component, grep the file for `getElementById` naming any part of
+it — each hit is a write that now covers half the instances.
+
+### And while you are there: disabled is exempt from WCAG, not exempt from being readable
+
+A drawer's checkout button inherited `color: #fff` from its enabled rule and put it over a
+pale disabled tint: **1.73:1**. WCAG 1.4.3 excuses disabled controls, so no audit that
+filters on the spec will ever flag it, and it is still an unreadable button on screen.
+Give the disabled state its own colour pair — outline plus muted label reads as "off" and
+measures 5.30:1.
 
 ---
 

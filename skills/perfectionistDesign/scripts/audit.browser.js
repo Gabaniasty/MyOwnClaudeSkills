@@ -18,15 +18,46 @@
   const lum = (a) => 0.2126 * lin(a[0]) + 0.7152 * lin(a[1]) + 0.0722 * lin(a[2]);
   const ratio = (a, b) => { const L1 = lum(a), L2 = lum(b); return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05); };
 
-  /* color() uses 0-1 floats while rgb() uses 0-255. Parsing both as 0-255 once
-     produced 18 phantom failures. */
+  /* RESOLVE COLOURS WITH A CANVAS. Do not parse the syntax.
+   *
+   * Hand-parsing kept producing phantom failures because CSS keeps growing new
+   * colour spaces and each one numbers differently:
+   *   rgb(244 239 231)                        0-255
+   *   color(srgb .95 .93 .90)                 0-1      -> once caused 18 phantoms
+   *   oklab(0.953803 0.00216 0.01176 / 0.92)  L is 0-1 -> once caused 28 phantoms,
+   *                                           read as near-black, which made a
+   *                                           perfectly legible nav look like 1.21:1
+   * A canvas converts ANY valid CSS colour to sRGB, including oklab/oklch/lab/lch/
+   * hwb/color-mix output and named colours, and it will keep working for whatever
+   * gets added next. Alpha is read separately because fillStyle discards it. */
+  const _cc = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  const _colorCache = new Map();
   function parseColor(s) {
     if (!s) return null;
-    const n = (s.match(/-?[\d.]+/g) || []).map(Number);
-    if (n.length < 3) return null;
-    let [r, g, b] = n;
-    if (/^color\(/.test(s)) { r *= 255; g *= 255; b *= 255; }
-    return [r, g, b, n.length > 3 ? n[3] : 1];
+    if (_colorCache.has(s)) return _colorCache.get(s);
+    const t = String(s).trim();
+    if (!t || t === "none" || t === "transparent") { _colorCache.set(s, null); return null; }
+    /* alpha: last value after a slash, or the 4th comma-separated number */
+    let alpha = 1;
+    const slash = t.match(/\/\s*([\d.]+%?)\s*\)/);
+    if (slash) alpha = slash[1].endsWith("%") ? parseFloat(slash[1]) / 100 : parseFloat(slash[1]);
+    else if (/^rgba?\(/i.test(t)) {
+      const n = t.match(/-?[\d.]+/g) || [];
+      if (n.length > 3) alpha = parseFloat(n[3]);
+    }
+    let out = null;
+    try {
+      _cc.clearRect(0, 0, 1, 1);
+      _cc.fillStyle = "#000";
+      _cc.fillStyle = t;                       // invalid values leave it as #000
+      if (_cc.fillStyle !== "#000" || /^(#000000|#000|black|rgb\(0,\s*0,\s*0\))$/i.test(t)) {
+        _cc.fillRect(0, 0, 1, 1);
+        const d = _cc.getImageData(0, 0, 1, 1).data;
+        out = [d[0], d[1], d[2], alpha];
+      }
+    } catch (e) { out = null; }
+    _colorCache.set(s, out);
+    return out;
   }
 
   /* THE GROUND UNDER AN ELEMENT, COMPOSITING TRANSLUCENT LAYERS.
