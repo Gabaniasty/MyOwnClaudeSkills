@@ -137,7 +137,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;w
   animation:rise .32s var(--ease) both}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .turn .av{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
-  font-size:10.5px;font-weight:700;flex:none;margin-top:1px}
+  flex:none;margin-top:1px}
+/* 15px inside a 26px box leaves a ~5.5px optical margin, matching the 19px mark
+   in its 26px header tile. The bot glyph carries antenna and side-pins that sit
+   near the viewBox edge, so it must not go larger or it reads as cramped. */
+.turn .av svg{width:15px;height:15px}
 .turn.me .av{background:var(--panel);border:1px solid var(--line-2);color:var(--ink-3)}
 .turn.pf .av{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);
   color:var(--accent)}

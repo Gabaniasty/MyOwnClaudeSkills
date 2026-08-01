@@ -24,9 +24,21 @@ $("#btnTheme").onclick = () => {
 };
 
 /* ------------------------------------------------------------------ turns */
+/* Avatars are Lucide glyphs (ISC), same family and stroke-width as the toolbar
+   icons in index.html. They were the letters "U" and "P", which read as initials
+   of nothing and gave the agent no identity in the transcript. Inlined rather
+   than <img> so they inherit currentColor and follow the theme swap for free. */
+const AVATAR = {
+  me: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  pf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
+};
+
 function turn(who) {
   const t = el("div", `turn ${who}`);
-  t.appendChild(el("div", "av", who === "me" ? "U" : "P"));
+  const av = el("div", "av");
+  av.innerHTML = AVATAR[who] || AVATAR.pf;
+  av.setAttribute("aria-hidden", "true");
+  t.appendChild(av);
   const b = el("div", "body");
   t.appendChild(b);
   inner.appendChild(t);
