@@ -377,6 +377,7 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] **Gate 36** live host warmed before the sweep; every non-200 retried; served bytes == built bytes
 - [ ] **Gate 37** push was a fast-forward; `ls-remote` == local HEAD; no `--force` anywhere
 - [ ] **Gate 38** signature device named and load-bearing; swap-the-logo test on the MOCKUP returns "now looks wrong"
+- [ ] **Gate 39** >= 2 mockups generated and shown side by side; the USER chose, not you
 - [ ] 0 broken images, 0 console errors, 0 stranded reveals
 - [ ] 0 horizontal overflow at 375 / 768 / 1024 / 1440 / 1920
 - [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
@@ -404,7 +405,7 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/04-build-standards.md` â€” design system, single-file architecture, JS patterns, traps
 - `references/05-verification-protocol.md` â€” the measurement scripts
 - `references/06-ship-deploy-git.md` â€” staging, deploy, live audit, git
-- `references/07-failure-gates.md` â€” **38 mechanical gates, every one from a defect that
+- `references/07-failure-gates.md` â€” **39 mechanical gates, every one from a defect that
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1;
   Gate 19 must be read at Phase 3, before a single image prompt is written, because a plate
   cut to the wrong aspect cannot be repaired in CSS afterwards.**

@@ -1572,6 +1572,49 @@ is in the idea, never in making the page harder to use.**
 
 ---
 
+## GATE 39 — Two mockups minimum, and the USER picks
+
+**Phase 1. Standing instruction from the user, not a judgement call.**
+
+> Every new website and every redesign produces **at least 2 visibly different mockups**,
+> shown to the user, and **the user chooses.**
+
+`02-mockup-prompt.md` §0.8 used to make this conditional (*"when the job is hard"*, five
+qualifying conditions) and then handed the decision to the agent (*"put them side by side
+and **pick** with a written reason"*). Both halves were wrong. The user had asked for
+options on every build, and choosing between design directions is the one decision that is
+genuinely theirs — showing someone your pick after the fact is not a choice.
+
+**Pass condition, all four:**
+
+```
+1. count(mockup images generated)  >= 2      (3 when high-stakes or unsure; 1 ONLY when
+                                              the user supplied a reference of the NEW
+                                              design or explicitly asked for one)
+2. all of them presented to the user, same size, side by side
+3. each carries one line: what it does well, what it costs
+4. a recommendation is given AND the reply ends by asking which to build
+```
+
+Then **stop.** Do not enter Phase 2 on your own pick. If the user is unavailable and work
+must continue, name the one you proceeded with and why, in the open, so it stays reversible.
+
+### The options must differ in the right way
+
+Each is a different **staging of the same signature device** (Gate 38), never a different
+genre. Three genres is the banned menu with extra steps. Vary one axis at a time and hold
+the section list, copy and palette identical, or the comparison teaches nothing.
+
+**A quick check:** if you can describe the difference between your mockups using only genre
+words ("A is editorial, B is brutalist"), you have generated a menu, not options. Regenerate.
+
+### Do not average them
+
+Blending mockups produces the mush that having a mockup was supposed to prevent. Build the
+chosen one, then graft **one** named idea from a loser and say what you took.
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the

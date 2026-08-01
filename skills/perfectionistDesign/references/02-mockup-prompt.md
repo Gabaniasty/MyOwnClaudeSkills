@@ -109,35 +109,72 @@ Put the avoidance list first and it becomes the brief.
 
 ---
 
-## §0.8 GENERATE MORE THAN ONE MOCKUP WHEN THE JOB IS HARD
+## §0.8 ALWAYS GIVE THE USER AT LEAST TWO MOCKUPS TO CHOOSE FROM
 
-One mockup is a guess with a 1-in-1 hit rate. Generating three costs about six minutes
-and turns Phase 1 into a real choice.
+**This is a standing instruction from the user, not a judgement call.**
 
-**Generate a single mockup when:** the brief is narrow, the brand already exists, or the
-user supplied a reference of the new design.
+> Every new website and every redesign produces **at least 2 visibly different mockups**,
+> presented to the user, and **the user picks.**
 
-**Generate THREE when any of these is true:**
-- the page has to sell something, book something or convert — the layout carries money
-- the brief names a feeling but no reference ("premium", "calm", "bold")
-- more than about eight sections, or an unusual section you have not built before
-- a redesign that must MEASURABLY diverge (Gate 15)
-- you are unsure. Being unsure is itself the signal.
+One mockup is a guess with a 1-in-1 hit rate. It also quietly removes the user from the
+only decision that is genuinely theirs. Two costs about four minutes.
 
-Vary **one axis only** across the three, so the comparison means something:
+> This section used to read *"generate more than one mockup WHEN THE JOB IS HARD"*, listed
+> five conditions, and then said *"put them side by side and **pick** with a written
+> reason."* Both halves were wrong: the plurality was conditional when the user had asked
+> for it always, and **the agent was choosing.** Showing someone your pick after the fact
+> is not a choice.
 
-| Axis | A | B | C |
+### How many
+
+| Situation | Mockups |
+|---|---|
+| **New website** | **2 minimum** |
+| **Redesign** | **2 minimum** (and see Gate 15 — they must diverge from the original, not just each other) |
+| High stakes: the layout carries money, 8+ sections, no reference and only a feeling, or you are unsure | **3** |
+| The user supplied a reference image *of the new design*, or explicitly asked for one | 1 |
+
+Being unsure is itself the signal to go to 3, never down to 1.
+
+### What varies between them
+
+Each option is a **different expression of the same signature device** (Gate 38), never a
+different genre. The device is the idea; the mockups are ways of staging it.
+
+Wrong — this is the genre menu Gate 38 bans, wearing new clothes:
+
+| ~~Axis~~ | ~~A~~ | ~~B~~ | ~~C~~ |
 |---|---|---|---|
-| composition | editorial split | full-bleed image-led | typographic, image-light |
-| density | airy | medium | dense catalogue |
-| type | serif display | grotesque display | mono-accented |
+| ~~type~~ | ~~serif display~~ | ~~grotesque~~ | ~~mono-accented~~ |
 
-Keep the section list, the content and the palette identical across all three. Then put
-them side by side and pick with a written reason: *"B, because the product grid reads as
-a shop at a glance and A buries it below the fold."* Steal the best single idea from the
-losers — a nav treatment, a footer, one section's composition — and say what you took.
+Right — a roastery whose device is "the page tracks the roast":
 
-**Never average them.** Blending three mockups produces the mush that having a mockup was
+- **A** — colour temperature shifts down the page, green to dark brown, photography-led
+- **B** — the roast curve itself is the spine of the layout, sections hang off it
+- **C** — each coffee is a full screen, the shift happens between them, not within
+
+All three are the same idea. A visitor could describe any of them afterwards. Vary **one
+axis at a time** so the comparison means something, and keep the section list, the copy and
+the palette identical across all of them — otherwise you are comparing two things at once
+and learning nothing.
+
+### Presenting them
+
+Show them **side by side, at the same size**, and for each one write a single line on what
+it does well and what it costs. Then give your recommendation with a reason, and make it
+plainly a recommendation:
+
+> *"A and B attached. B is my pick — the product grid reads as a shop at a glance where A
+> buries it below the fold. A has the better nav. Which do you want to build?"*
+
+Then **stop and wait.** Do not start Phase 2 on your own pick. If the user is not available
+and the work must continue, say explicitly which one you proceeded with and why, so the
+choice stays visible and reversible.
+
+Once they choose, steal the best single idea from the ones they did not pick — a nav
+treatment, a footer, one section's composition — and say what you took.
+
+**Never average them.** Blending mockups produces exactly the mush that having a mockup was
 supposed to prevent. Pick one, graft deliberately.
 
 ---

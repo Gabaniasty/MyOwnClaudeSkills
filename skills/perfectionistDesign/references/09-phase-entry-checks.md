@@ -44,6 +44,34 @@ harder to use.
 
 ---
 
+## Entering Phase 1 — generating mockups (Gate 39)
+
+**Standing instruction: at least 2 mockups, and the USER picks.** Not "when the job is
+hard", not "when unsure" — every new website, every redesign.
+
+- [ ] How many am I generating? **2 minimum.** 3 if the layout carries money, there are
+      8+ sections, the brief is a feeling with no reference, or I am unsure. 1 **only** if
+      the user supplied a reference image *of the new design* or explicitly asked for one.
+- [ ] Do they differ as **stagings of the same signature device** (Gate 38), rather than as
+      different genres? If I can only tell them apart with genre words, I built the banned
+      menu again. Regenerate.
+- [ ] Is exactly **one axis** varying, with section list, copy and palette identical? Two
+      axes at once means the comparison teaches nothing.
+
+Leaving Phase 1, before any extraction work:
+
+- [ ] All of them shown to the user, **same size, side by side**
+- [ ] One line each on what it does well and what it costs
+- [ ] A recommendation given, clearly labelled as a recommendation
+- [ ] The reply **ends by asking which one to build**, and then stops
+
+> The old rule let the agent generate one, or generate several and then *pick* on the
+> user's behalf. Showing someone your choice after the fact is not offering a choice.
+> If the user genuinely cannot answer and work must continue, name the one you went with
+> and why, in the open, so it stays reversible.
+
+---
+
 ## Entering Phase 2 — analysing a mockup
 
 **Do not look for sections. Inventory every visual element.**
