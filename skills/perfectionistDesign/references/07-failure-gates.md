@@ -1532,6 +1532,38 @@ glassmorphism, dark-tech, minimal, premium-consumer, luxury-hospitality, or any 
 recognisable genre executed faithfully. They are vocabulary for *talking* about design
 (`10-reference-and-components.md` §3), never the design itself.
 
+### And never in a label the user reads
+
+The "vocabulary for talking about design" clause was too loose, and a live run showed how.
+A mockup went out labelled:
+
+> *"Variant B — The Grid of Nights **(editorial index)**"* … *"A **newspaper-style editorial
+> page**"*
+
+The device under it was fine — the week's schedule rendered as a dense typographic index.
+It had simply been *named* with one of the genres this gate bans. The user read the label,
+not the reasoning, and immediately asked whether the rule was being followed. They were
+right to.
+
+**So the line is drawn at the surface, not at the intent.** A genre word may appear in your
+private reasoning. It may never appear in:
+
+- a variant name or heading
+- a section label, eyebrow or pill
+- the one-line description you present with a mockup
+- anything else the user reads
+
+Describe the device instead: *"the week's schedule as a dense typographic index"* says what
+it is, is specific to this subject, and cannot be mistaken for a style off a shelf.
+
+**Mechanical check before you send any Phase 1 presentation:**
+
+```bash
+grep -inE "editorial|swiss|brutalis|punk|glassmorph|minimal|premium.consumer|dark.tech" <your reply>
+```
+
+Any hit in a label is a rename, not a debate.
+
 ### The check
 
 The Phase 0 preamble gains two lines, and both must be non-empty before Phase 1 starts:
@@ -1601,12 +1633,50 @@ must continue, name the one you proceeded with and why, in the open, so it stays
 
 ### The options must differ in the right way
 
-Each is a different **staging of the same signature device** (Gate 38), never a different
-genre. Three genres is the banned menu with extra steps. Vary one axis at a time and hold
-the section list, copy and palette identical, or the comparison teaches nothing.
+**Different DEVICES are the good case.** This section originally demanded "a different
+staging of the same signature device", and a live run did better than the rule: asked for a
+cinema, it produced *The Projection Cone* (a light beam as the page's diagonal axis), *The
+Grid of Nights* (the week's schedule as a dense typographic index) and *The Showtime Ladder*
+(the hero IS the showtime list — giant time numerals, each with a Reserve button). Three
+ideas, not three dressings of one. The user picked the third, a device the other two did not
+share — a choice the rule as written would have prevented from existing.
 
-**A quick check:** if you can describe the difference between your mockups using only genre
-words ("A is editorial, B is brutalist"), you have generated a menu, not options. Regenerate.
+At Phase 1 the *idea* is what is still open, so that is what the variants should explore.
+Restaging one device is the narrower question and belongs later, if at all.
+
+What must still hold:
+
+- **Hold the section list, the copy and the palette identical.** Vary the idea, not five
+  things at once, or the comparison teaches nothing about why one won.
+- **Never a genre.** Three genres is the banned menu (Gate 38) with extra steps.
+- **Name each device concretely**, so the user is choosing between things they can picture.
+
+**Two checks before you send:**
+
+1. If you can describe the difference between your mockups using only genre words
+   ("A is editorial, B is brutalist"), you built a menu, not options. Regenerate.
+2. **Grep your own presentation text for genre words before sending it.** In the run above
+   Variant B went out labelled *"The Grid of Nights (editorial index)"* and described as *"a
+   newspaper-style editorial page"*. The device underneath was legitimate; it had simply been
+   labelled with one of the exact genres Gate 38 bans. The user noticed immediately and asked
+   whether the rule was being followed. Genre words are for your own reasoning — never for a
+   heading, a label, or a variant name the user reads.
+
+### The count is mechanical
+
+`scripts/check-mockups.cjs` counts prompts and rendered masters and reports both. It fails on
+fewer than 2 masters, and on any prompt that never rendered — "three mockups" in the
+transcript with two files on disk means the choice was made from an incomplete set.
+
+It cannot see whether you actually showed them and asked, and it says so rather than
+implying otherwise. That half is still yours.
+
+A single mockup is legitimate when the user supplied a reference of the new design or asked
+for one. Record it in the project so the exception is visible rather than remembered:
+
+```bash
+echo "user supplied a reference image of the new design" > scratch/.one-mockup
+```
 
 ### Do not average them
 

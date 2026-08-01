@@ -172,7 +172,13 @@ async function jobGenerate(projectPath, only) {
     const parallel = Math.max(1, parseInt(process.env.PD_IMAGE_PARALLEL || "3", 10) || 1);
     const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script("run-imagegen.ps1"),
       "-Root", projectPath, "-Strict", "-Parallel", String(parallel)];
-    if (only?.length) args.push("-Slugs", only.join(","));
+    /* ALWAYS pass the computed list. This used to send -Slugs only for partial
+       runs, so a full run left the script to re-glob the prompts directory and it
+       came back with a DIFFERENT work set - 21 slugs including the mockups, while
+       this job tracked 18. Two ideas of the work in one job. It did no damage only
+       because the mockups already existed and were skipped; on a regenerate they
+       would have been re-rendered into the shipped image set at ~5 min each. */
+    args.push("-Slugs", slugs.join(","));
     const r = await run(job, ps, args, {
       cwd: projectPath,
       onLine(l) {
@@ -200,6 +206,9 @@ async function jobPipeline(projectPath, kind) {
       ["audit references", node, [script("audit-refs.cjs"), `--root=${projectPath}`]],
     ],
     gates: [
+      /* Gate 39 was the only gate with no number. It asked the agent to CONFIRM
+         it had generated two mockups instead of counting the files. */
+      ["mockups", node, [script("check-mockups.cjs"), `--root=${projectPath}`]],
       ["references", node, [script("audit-refs.cjs"), `--root=${projectPath}`]],
       ["tag tree", node, [script("check-nesting.cjs"), `--root=${projectPath}`]],
       ["markup faults", node, [script("check-markup.cjs"), `--root=${projectPath}`]],
@@ -326,14 +335,63 @@ async function jobDeploy(projectPath, { project, app, port = 8080, mode = "autos
              HEAD every asset on the live host before calling this done. */
           jobStep(job, "verify live", "running");
           try {
-            const res = await fetch(url, { cache: "no-store" });
+            /* GATE 36, implemented rather than documented. The host returns
+               "running" the moment the upload lands and builds asynchronously, so
+               verifying immediately measures a container that does not exist yet.
+               This step reported `fail` three times in a row on a deploy that was
+               fine - twice with "fetch failed", once with a real 404 - 14 seconds
+               after upload. The URL served 200 on a later manual retry.
+               So: poll until the host actually answers, and treat "no answer yet"
+               as "not ready", never as "broken". */
+            const WARM_MS = 150000, STEP_MS = 5000;
+            const t0 = Date.now();
+            let res = null, attempts = 0;
+            while (Date.now() - t0 < WARM_MS) {
+              attempts++;
+              try {
+                res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(20000) });
+                if (res.ok) break;
+              } catch { res = null; }              // still booting; not a verdict
+              jobStep(job, "verify live", "running",
+                `waiting for the build · ${attempts} check${attempts === 1 ? "" : "s"} · ${Math.round((Date.now() - t0) / 1000)}s`);
+              await new Promise((r) => setTimeout(r, STEP_MS));
+            }
+            if (!res || !res.ok) {
+              jobStep(job, "verify live", "fail",
+                `no 200 after ${Math.round((Date.now() - t0) / 1000)}s and ${attempts} attempts` +
+                (res ? ` · last HTTP ${res.status}` : " · host never answered"));
+              return jobEnd(job, "fail", { url, assets: 0, broken: 0 });
+            }
             const html = await res.text();
             const refs = [...new Set(html.match(/(?:images|logo)\/[A-Za-z0-9._/-]+\.(?:png|jpe?g|webp|svg|ico)/g) || [])];
             let bad = 0;
-            for (const a of refs) { const h = await fetch(`${url}/${a}`, { method: "HEAD" }); if (!h.ok) bad++; }
-            const ok = res.ok && bad === 0;
-            jobStep(job, "verify live", ok ? "ok" : "fail", `HTTP ${res.status} · ${refs.length} assets · ${bad} broken`);
-            jobEnd(job, ok ? "ok" : "fail", { url, assets: refs.length, broken: bad });
+            const missing = [];
+            for (const a of refs) {
+              let h = null;
+              try { h = await fetch(`${url}/${a}`, { method: "HEAD", signal: AbortSignal.timeout(20000) }); } catch { h = null; }
+              /* Retry once before believing it. A cold edge drops the first few
+                 asset requests too, and reporting those as missing sends someone
+                 off to rebuild assets that are perfectly fine. */
+              if (!h || !h.ok) {
+                await new Promise((r) => setTimeout(r, 1500));
+                try { h = await fetch(`${url}/${a}`, { method: "HEAD", signal: AbortSignal.timeout(20000) }); } catch { h = null; }
+              }
+              if (!h || !h.ok) { bad++; missing.push(a); }
+            }
+            /* Prove the NEW build is live, not just that something is. On a
+               redeploy a 200 is frequently the previous version. */
+            let bytesMatch = null;
+            try {
+              const localHtml = await readFile(join(outDir, "index.html"), "utf8");
+              bytesMatch = Buffer.byteLength(localHtml) === Buffer.byteLength(html);
+            } catch {}
+            const ok = bad === 0 && bytesMatch !== false;
+            if (missing.length) jobLog(job, `missing on host: ${missing.slice(0, 10).join(", ")}`, "warn");
+            if (bytesMatch === false) jobLog(job, "served document differs from the staged build - the host may still be serving the previous version", "warn");
+            jobStep(job, "verify live", ok ? "ok" : "fail",
+              `HTTP ${res.status} · ${refs.length} assets · ${bad} broken` +
+              (bytesMatch === null ? "" : bytesMatch ? " · bytes match" : " · BYTES DIFFER"));
+            jobEnd(job, ok ? "ok" : "fail", { url, assets: refs.length, broken: bad, bytesMatch });
           } catch (e) {
             jobStep(job, "verify live", "fail", e.message);
             jobEnd(job, "fail", { url });
@@ -509,10 +567,12 @@ async function jobChat(projectPath, prompt, opts = {}) {
     "     reference, or you are unsure - unsure means go UP, never down to one). Each",
     "     describes the WHOLE page top to bottom, every section in order. Then call",
     "     mcp__pipeline__generate_mockup once, with the list of slugs.",
-    "     The variants are different STAGINGS OF THE SAME SIGNATURE DEVICE, never",
-    "     different genres. Vary ONE axis; hold the section list, copy and palette",
-    "     identical. If you can only tell them apart with genre words, you built a menu",
-    "     instead of options - regenerate.",
+    "     The variants offer genuinely DIFFERENT DEVICES - different ideas, not three",
+    "     dressings of one, and never different genres. At Phase 1 the idea is what is",
+    "     still open. Hold the section list, copy and palette identical so the choice is",
+    "     about the idea. If you can only tell them apart with genre words you built a",
+    "     menu instead of options - regenerate. And never let a genre word (editorial,",
+    "     Swiss, brutalist, punk, minimal, premium-consumer) reach a label the user reads.",
     "     Then SHOW the user every mockup, one line each on what it does well and what it",
     "     costs, give a recommendation clearly labelled as a recommendation, ASK WHICH TO",
     "     BUILD, AND STOP. Do not continue on your own pick. Generate ONE mockup only when",

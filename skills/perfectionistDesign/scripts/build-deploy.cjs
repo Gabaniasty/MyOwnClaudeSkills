@@ -65,5 +65,49 @@ console.log(`deploy folder  : ${(bytes(OUT) / 1048576).toFixed(1)} MB   -> ${OUT
 console.log(`files          : ${files.length}`);
 console.log(`top level      : ${[...new Set(files.map((f) => f.split("/")[0]))].join(", ")}`);
 
+/* GATE 43. A deploy folder has TWO requirements and only one used to be checked.
+ * `referenced === copied` proves every ASSET arrived. It says nothing about
+ * whether the folder can RUN, and a folder that cannot run deploys "successfully"
+ * and then 404s from the host's router, because the buildpack produces a
+ * container that never listens on a port.
+ *
+ * Measured, the two staged folders side by side:
+ *     runtime files : index.html                            -> 404, three deploys wasted
+ *     runtime files : index.html, serve.mjs, package.json   -> 200
+ *
+ * So assert the runtime, and report it as a line like the asset count. A project
+ * that is genuinely a static upload can say so with a marker file rather than
+ * being silently allowed through. */
+const runnable = { ok: false, how: null, why: null };
+const outHas = (f) => fs.existsSync(path.join(OUT, f));
+
+if (outHas("package.json")) {
+  let pkg = null;
+  try { pkg = JSON.parse(fs.readFileSync(path.join(OUT, "package.json"), "utf8").replace(/^﻿/, "")); } catch {}
+  const start = pkg && pkg.scripts && pkg.scripts.start;
+  if (!start) {
+    runnable.why = "package.json has no scripts.start";
+  } else {
+    /* The start script must point at a file that is actually IN the folder.
+       `node serve.mjs` with no serve.mjs is the same 404 with extra steps. */
+    const named = (start.match(/[\w./-]+\.(?:mjs|cjs|js|ts)/) || [])[0];
+    if (named && !outHas(named)) runnable.why = `scripts.start runs ${named}, which was not copied`;
+    else { runnable.ok = true; runnable.how = `package.json · ${start}`; }
+  }
+} else if (outHas(".static") || outHas("_static") || outHas("Staticfile")) {
+  runnable.ok = true; runnable.how = "static marker (no server expected)";
+} else {
+  runnable.why = "no package.json and no static marker";
+}
+
+console.log(`runtime                         : ${runnable.ok ? runnable.how : "MISSING — " + runnable.why}`);
+
 if (missing.length) { console.log("\nreferenced !== copied — NOT safe to deploy"); process.exit(1); }
-console.log("\nreferenced === copied, 0 missing");
+if (!runnable.ok) {
+  console.log(`\nNOT RUNNABLE — ${runnable.why}`);
+  console.log("A host will build this and route nothing. Add a package.json with a");
+  console.log("start script and the file it runs, or drop an empty `.static` marker in");
+  console.log("the project root if it is genuinely a static upload.");
+  process.exit(1);
+}
+console.log("\nreferenced === copied, 0 missing · runtime present");

@@ -138,8 +138,17 @@ Being unsure is itself the signal to go to 3, never down to 1.
 
 ### What varies between them
 
-Each option is a **different expression of the same signature device** (Gate 38), never a
-different genre. The device is the idea; the mockups are ways of staging it.
+**Different DEVICES, not different genres — and not three dressings of one device.**
+
+This section used to demand "a different expression of the same signature device". A live
+run ignored that and did better: for a cinema it offered a projection-cone hero, a
+typographic schedule index, and a showtime ladder where the hero *is* the list of times.
+Three ideas. The user chose the third, which shared nothing with the other two. At Phase 1
+the idea itself is what is still open, so that is what the options should explore.
+
+Hold the section list, the copy and the palette identical across all of them, so the choice
+is about the idea and not about five things at once. And never let a genre name reach the
+label the user reads — see Gate 38 and Gate 39.
 
 Wrong — this is the genre menu Gate 38 bans, wearing new clothes:
 

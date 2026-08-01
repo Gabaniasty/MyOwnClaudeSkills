@@ -89,11 +89,17 @@ hard", not "when unsure" — every new website, every redesign.
 - [ ] How many am I generating? **2 minimum.** 3 if the layout carries money, there are
       8+ sections, the brief is a feeling with no reference, or I am unsure. 1 **only** if
       the user supplied a reference image *of the new design* or explicitly asked for one.
-- [ ] Do they differ as **stagings of the same signature device** (Gate 38), rather than as
-      different genres? If I can only tell them apart with genre words, I built the banned
-      menu again. Regenerate.
-- [ ] Is exactly **one axis** varying, with section list, copy and palette identical? Two
-      axes at once means the comparison teaches nothing.
+- [ ] Do they offer **genuinely different devices** — different ideas, not three dressings
+      of one? At Phase 1 the idea is what is still open. (This check used to demand the
+      opposite; a live run offered three distinct devices, the user picked one the others
+      did not share, and the old wording would have prevented that option existing.)
+- [ ] Can I tell them apart WITHOUT genre words? If the only distinction is "A is editorial,
+      B is brutalist", I built the banned menu again (Gate 38). Regenerate.
+- [ ] Have I grepped my own presentation text for genre words — editorial, Swiss, brutalist,
+      punk, minimal, premium-consumer, glassmorphism? They may appear in my reasoning, never
+      in a label, heading or variant name the user reads.
+- [ ] Section list, copy and palette **identical** across all of them, so the choice is about
+      the idea and not about five things at once.
 
 Leaving Phase 1, before any extraction work:
 
