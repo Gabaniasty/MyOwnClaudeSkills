@@ -1410,6 +1410,107 @@ measures 5.30:1.
 
 ---
 
+## GATE 36 — A fresh deploy's first requests are cold starts, not 404s
+
+**Phase 7, every time, before reporting anything about a live host.**
+
+Straight after a deploy returned `status: running`, an asset sweep printed:
+
+```
+MISSING 000 images/bag_01_yirgacheffe-1254.jpg
+MISSING 000 images/bag_01_yirgacheffe-520.webp
+... 10 of them, and the root document too
+```
+
+Every one of those files was present and correct. The container was still booting;
+`curl` gave up before it answered. **`000` is not an HTTP status — it is "no response".**
+Reported as-is it reads as a broken deploy, and the obvious next move is to go rebuild
+something that was never wrong.
+
+The tell is in the numbers: the failures were the *first* requests in alphabetical order,
+and the count was small and contiguous. A real missing-asset problem does not politely
+confine itself to the first ten entries.
+
+**Warm the host, then sweep, and treat only a real 4xx/5xx as a defect:**
+
+```bash
+# warm-up: burn the cold start on the document, with a generous timeout
+for i in 1 2 3; do curl -s -m 30 -o /dev/null -w "%{http_code}\n" "$URL/"; done
+
+# now sweep, and RETRY anything that is not 200 before believing it
+code=$(curl -s -m 25 -o /dev/null -w "%{http_code}" "$URL/$a")
+if [ "$code" != "200" ]; then
+  sleep 2
+  code=$(curl -s -m 25 -o /dev/null -w "%{http_code}" "$URL/$a")   # second opinion
+fi
+```
+
+**Pass condition — report all three, not just the last:**
+
+```
+root: 200, served bytes == local bytes
+assets: N checked, 0 non-200 after retry
+served index.html byte-identical to the deploy folder's
+```
+
+The byte-comparison is the one that actually proves the *new* build is live. A 200 only
+proves *something* is there — on a redeploy that is frequently the previous version.
+
+---
+
+## GATE 37 — A rejected push means YOUR clone is stale. Never resolve it with force.
+
+**Phase 7. This is the one that destroys the user's work, so it outranks convenience.**
+
+A push to the skills repo was rejected as non-fast-forward. The local clone was **seven
+commits behind** — it had been left stale by an earlier session, and the working tree had
+just been overwritten wholesale with a fresh sync of the live skill folder.
+
+Everything about that situation argues for `--force`: the local tree is newer, it is a
+strict superset of the content, and the remote "only" has old commits. **All three of
+those things were true and force would still have destroyed seven commits of the user's
+history**, including work from sessions this one never saw.
+
+`git status` is silent about this. A clone that has not fetched believes it is current.
+
+**The rule: a non-fast-forward rejection is information about you, not an obstacle.**
+
+```bash
+git fetch origin main
+git log --oneline HEAD..origin/main        # what the remote has that you lack — READ IT
+git diff --stat HEAD...origin/main         # and what those commits touched
+```
+
+Then rebuild your commit **on top of** the remote, so nothing upstream is discarded:
+
+```bash
+git reset --hard origin/main               # adopt the remote history wholesale
+<re-apply your changes over it>            # a re-sync, or `git cherry-pick`
+git add -A && git commit
+git push origin main                       # a normal fast-forward
+```
+
+After the re-sync the staged diff shrinks to exactly your own new work — 33 files became
+4. **That shrinkage is the proof you had nothing to force over.** If a full-tree sync
+still shows dozens of changed files after resetting to the remote, you are about to
+overwrite someone else's commits with a stale copy; stop and diff them one by one.
+
+**Never pass `--force` or `--force-with-lease` to resolve a rejected push unless the user
+has explicitly asked for that specific history to be discarded.** Rewriting published
+history is not a merge strategy.
+
+**Pass condition:**
+
+```bash
+git ls-remote origin main        # must equal
+git rev-parse HEAD               # this, after a push with no --force
+```
+
+And confirm the push output shows a fast-forward range (`dfe8caa..36940eb`), never a
+forced update (`+ dfe8caa...36940eb (forced update)`).
+
+---
+
 ## THE REPORTING RULE
 
 When you claim something works, the claim must name **what** was measured and **what the
