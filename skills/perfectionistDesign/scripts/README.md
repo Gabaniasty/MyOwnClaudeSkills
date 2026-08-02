@@ -79,6 +79,21 @@ rm images/<slug>-[0-9]*.{png,jpg,webp}    # then reprocess
 | `hero-scrim.cjs` | Binary-searches the weakest scrim that clears AA. **Gates 19, 20** |
 | `check-nesting.cjs` | Tag tree balance. **Gate 17** |
 | `check-markup.cjs` | Duplicate `style` attributes, unset custom properties, unscoped reveal rules. **Gate 23** |
+| `check-leading.browser.js` | Line-height vs the marks the copy actually carries, per rendered line pair. **Gate 46** |
+
+`check-leading` is mandatory on any page whose copy is not English — Polish, Czech,
+Turkish, Vietnamese, Romanian, Greek and Cyrillic all put ink above cap height or below
+the baseline, where a `.9`–`.95` display leading has no room for it:
+
+```js
+await __leading()                          // whole page
+await __leading({ selector: 'h1,h2,.lede' })
+```
+
+It returns **two** numbers and only one is a gate. `collisions` measures the lines on the
+page today and any negative slack is a visible overlap — that fails. `headroom` measures
+the worst stack the typeface could ever be asked to set and is advisory: negative headroom
+means future copy could collide, which is worth saying and is not a defect.
 
 The browser audit is the highest-value one. Paste it into the page and call it:
 

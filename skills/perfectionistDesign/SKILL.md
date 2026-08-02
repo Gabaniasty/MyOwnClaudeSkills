@@ -343,6 +343,14 @@ condition, tied to a named phase â€” not as a paragraph of advice.
   `JSON.parse` rejects. Use `;`+`if ($?)`, and strip the BOM when reading JSON back.
 - `$ErrorActionPreference = "Stop"` turns native git/gh stderr into fatal errors. Use
   `Continue` for scripts that shell out.
+- GNU `tar` reads `C:\path` as a **remote host spec** (host `C`, path the rest) and tries to
+  open a network connection. Pass `--force-local`, or hand it a POSIX path.
+- A background process you started still holds its directory: `rm -rf` / `fs.rmSync` fails
+  with **EPERM** and it reads like a permissions problem. Kill the process first —
+  `Get-CimInstance Win32_Process | Where CommandLine -match 'server\.js'`.
+- git's `LF will be replaced by CRLF` warnings go to stderr, so PowerShell reports a
+  **non-zero exit for a command that fully succeeded.** Confirm with `git log` / `git status`
+  before believing the exit code.
 
 ---
 
@@ -383,6 +391,11 @@ produces a number. Report the numbers, not the word "verified."
 - [ ] **Gate 42** every gate reported as <numbers produced> + <what it states it cannot see>; exit 0 is not a verdict
 - [ ] **Gate 43** deploy folder has a runtime (start script + its file), not just assets; live verify warmed and retried
 - [ ] **Gate 44** no UI/agent lock without a reconcile path against authoritative state
+- [ ] **Gate 45** placeholder data asserted against the features that consume it, not eyeballed
+- [ ] **Gate 46** line-height measured per ADJACENT LINE PAIR for the script the copy is in; tightest slack reported
+- [ ] **Gate 47** no property written by both a CSS animation and inline JS; the enter/leave/re-enter race replayed
+- [ ] **Gate 48** asset audit expands runtime-built paths from the page's own data; MISSING 0 **and** UNUSED 0
+- [ ] **Gate 49** every measurement names the precondition it settled on (fonts ready, scroll at rest, lazy images forced)
 - [ ] 0 broken images, 0 console errors, 0 stranded reveals
 - [ ] 0 horizontal overflow at 375 / 768 / 1024 / 1440 / 1920
 - [ ] Text contrast >= 4.5:1 against **rendered pixels**, at every breakpoint, on **every ground it lands on**
@@ -410,8 +423,9 @@ Read the one for the phase you are in. Do not preload them all.
 - `references/04-build-standards.md` â€” design system, single-file architecture, JS patterns, traps
 - `references/05-verification-protocol.md` â€” the measurement scripts
 - `references/06-ship-deploy-git.md` â€” staging, deploy, live audit, git
-- `references/07-failure-gates.md` â€” **44 mechanical gates, every one from a defect that
+- `references/07-failure-gates.md` â€” **49 mechanical gates, every one from a defect that
   reached a user. Read this at Phase 6 minimum; Gates 2, 7 and 8 apply from Phase 1;
+  Gate 46 applies at Phase 5, before a single `line-height` is chosen on non-English copy;
   Gate 19 must be read at Phase 3, before a single image prompt is written, because a plate
   cut to the wrong aspect cannot be repaired in CSS afterwards.**
 - `references/08-application-track.md` â€” **forums, dashboards, admin panels and any other

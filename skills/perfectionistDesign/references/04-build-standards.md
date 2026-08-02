@@ -357,10 +357,45 @@ Two layout defects from one bento:
 
 ---
 
+## 5.9 TYPE-SET FOR THE SCRIPT THE COPY IS IN
+
+**Read this before choosing any `line-height`, and only skip it if every visible string is
+English.** Full forensics and the measurement method are Gate 46.
+
+Tight display leading (`.9`–`.95`) is an **English-capitals** default. It is wrong the
+moment the copy carries marks:
+
+| Script | What breaks the line box |
+|---|---|
+| Polish | `Ż Ó Ś Ć Ń Ź` above cap height; `Ą Ę` ogonki below the baseline |
+| Vietnamese | stacked tone + vowel marks — the worst case by a wide margin |
+| Czech / Slovak | carons and acutes, incl. on capitals |
+| Turkish | dotted `İ`, cedillas below |
+| Greek / Cyrillic | accents and breathings above caps |
+
+A Polish hero shipped at `line-height:.94`, and the dot of `Ż` landed inside the line
+above. Measured minimum for that page's headings: **1.224em**, driven by an ordinary
+**comma** meeting an ordinary **acute accent** on the next line.
+
+**Rules:**
+
+- Set leading from a measurement per **adjacent line pair**, never per string, and never
+  by eye. Whole-string measurement over-reports and loosens type that was fine.
+- Body copy is usually safe (`1.5`+); **display type and uppercase are where this bites**.
+- Uppercasing via `text-transform` does not remove the marks. `Ą` uppercased is still `Ą`.
+- Fixed-height boxes around display type clip marks even when leading is right — check
+  `overflow` on the ancestors too.
+- If someone asks you to drop a diacritic to fix the layout, fix the leading instead and
+  say why. `staz` for `staż` is a spelling error traded for a spacing one.
+
+---
+
 ## 6. Traps that cost real time
 
 | Trap | Symptom | Fix |
 |---|---|---|
+| CSS `@keyframes` on a property JS also writes inline | Effect "freezes" or snaps to start; JS value is correct in the log | Animations beat inline styles. One owner per property (Gate 47) |
+| Grid column declared `1fr` | A wide child (table, `min-width`, `<pre>`) pushes the page sideways | Grid items default `min-width:auto` — use `minmax(0,1fr)` **and** `min-width:0` |
 | UA `figure` margin | Every framed image silently 80px narrow | `figure, blockquote, figcaption { margin: 0 }` in the reset |
 | `<img src="">` | Re-fetches the whole HTML doc as an image; 1 "broken image" | Omit the attribute entirely; set it in JS |
 | `<source>` 404 | WebP missing → **no fallback to `<img>`**, blank image | Audit `srcset` as well as `src` (`05` §2) |

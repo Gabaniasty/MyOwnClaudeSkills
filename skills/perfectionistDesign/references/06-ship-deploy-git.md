@@ -88,6 +88,40 @@ Pass tool arguments via a **file**, not an inline JSON string — Windows paths 
 layers of shell quoting will mangle. And PowerShell 5.1's `-Encoding utf8` writes a BOM that
 `JSON.parse` rejects, so strip `^﻿` when reading it back.
 
+### An MCP server reads its credential ONCE, at startup
+
+A deploy MCP returned `401 invalid api key` on every tenant-scoped call. The user supplied a
+working key; writing it into the server's config **changed nothing**, because the process
+was already running with the old value. There is no in-session fix: the connection has to
+be restarted, which the agent cannot do.
+
+Two things follow, and the second is the useful one:
+
+1. **Fix the config anyway** so the next session works, back it up first, and re-parse the
+   file after writing — MCP config commonly lives in a large shared JSON you must not corrupt.
+2. **The MCP server is a thin client over an HTTP API you can call yourself.** `npm pack`
+   the package and read `dist/client.js`; the endpoints, auth header and body encoding are
+   right there. That recovered the full contract in one step:
+
+   ```
+   GET  /tenants                                   -> tenant id
+   GET  /tenants/{tid}/projects                    -> find by name
+   POST /tenants/{tid}/projects   {name}           -> create
+   POST /projects/{pid}/source?app&port&mode&size  -> gzipped tarball, x-api-key header
+   ```
+
+   The deploy then runs from a script with no MCP involved.
+
+**Never hardcode the key in that script.** Read it from the config at runtime and mask it
+out of every log line and error message — deploy scripts get committed:
+
+```js
+const safe = s => String(s).split(KEY).join('hk_***');   // wrap every throw
+```
+
+Then grep the repo for the key's prefix before pushing, and tell the user to rotate any
+credential they pasted into chat.
+
 ---
 
 ## 3. Live audit — the step that is always skipped
